@@ -1,0 +1,327 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── User & Auth ──────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String?
+  name          String
+  role          String    @default("customer") // customer | business_owner | admin | moderator
+  phone         String?
+  whatsapp      String?
+  avatar        String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  reviews       Review[]
+  rfqs          RFQ[]
+  forumThreads  ForumThread[]
+  forumReplies  ForumReply[]
+  orders        Order[]
+  sessions      Session[]
+  accounts      Account[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── Business / Supplier ──────────────────────────────────────────────────────
+
+model Business {
+  id              String   @id @default(cuid())
+  name            String
+  legalName       String
+  description     String
+  logo            String?
+  banner          String?
+  businessTypes   String   // JSON array: ["manufacturer","distributor"]
+  gst             String   @unique
+  pan             String
+  msme            Boolean  @default(false)
+  yearEstablished Int
+  employees       Int?
+  annualRevenue   String?
+  website         String?
+  email           String
+  phone           String
+  whatsapp        String?
+  linkedIn        String?
+
+  // Address (stored as JSON string)
+  address         String   // JSON object
+  factoryAddress  String?  // JSON object
+
+  certifications  String   // JSON object: {iso,rohs,bis,ce,iec}
+  gallery         String?  // JSON array of URLs
+  badges          String   // JSON object: {verified,topRated,fastDelivery,...}
+  stats           String   // JSON object: {responseRate,avgDeliveryTime,...}
+  rating          Float    @default(0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  products        Product[]
+  reviews         Review[]
+}
+
+// ─── Product Catalog ──────────────────────────────────────────────────────────
+
+model Product {
+  id                    String   @id @default(cuid())
+  name                  String
+  category              String
+  subcategory           String?
+  brand                 String
+  manufacturer          String
+  manufacturerPartNumber String
+  supplierPartNumber    String
+  description           String
+  images                String   // JSON array of URLs
+  videos                String?  // JSON array
+  datasheet             String?
+
+  supplierId            String
+  supplier              Business @relation(fields: [supplierId], references: [id])
+
+  stock                 Int      @default(0)
+  minOrderQuantity      Int      @default(1)
+  price                 Float
+  leadTime              String
+  packaging             String
+  countryOfOrigin       String
+  hsnCode               String?
+  warranty              String?
+  lifecycle             String   @default("active") // active | discontinued | obsolete
+  rohs                  Boolean  @default(false)
+  reach                 Boolean  @default(false)
+
+  specs                 String?  // JSON object — category-specific specs
+
+  rating                Float?
+  reviewCount           Int      @default(0)
+  likes                 Int      @default(0)
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relations
+  reviews               Review[]
+  orderItems            OrderItem[]
+}
+
+// ─── Reviews ──────────────────────────────────────────────────────────────────
+
+model Review {
+  id          String   @id @default(cuid())
+  productId   String?
+  supplierId  String?
+  userId      String
+  userName    String
+  rating      Int
+  title       String
+  content     String
+  images      String?  // JSON array
+  videos      String?  // JSON array
+  verified    Boolean  @default(false)
+  helpful     Int      @default(0)
+  unhelpful   Int      @default(0)
+  categories  String?  // JSON object: {quality, originality, packaging, price, delivery, support}
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  product     Product?  @relation(fields: [productId], references: [id])
+  supplier    Business? @relation(fields: [supplierId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
+}
+
+// ─── RFQ System ───────────────────────────────────────────────────────────────
+
+model RFQ {
+  id           String      @id @default(cuid())
+  customerId   String
+  customerName String
+  title        String
+  description  String
+  items        RFQItem[]
+  bom          String?     // JSON object: {file?, content?}
+  targetPrice  String?
+  budgetMin    Float?
+  budgetMax    Float?
+  deliveryDate String?
+  priority     String      @default("medium") // low | medium | high | urgent
+  status       String      @default("draft")  // draft | published | quoted | ordered | completed | cancelled
+  quotations   Quotation[]
+  expiresAt    DateTime
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  customer     User        @relation(fields: [customerId], references: [id])
+}
+
+model RFQItem {
+  id            String  @id @default(cuid())
+  rfqId         String
+  partNumber    String
+  componentName String
+  quantity      Int
+  specifications String?
+  notes         String?
+
+  rfq           RFQ     @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+}
+
+model Quotation {
+  id            String          @id @default(cuid())
+  rfqId         String
+  supplierId    String
+  supplierName  String
+  items         QuotationItem[]
+  totalPrice    Float
+  currency      String          @default("INR")
+  leadTime      String
+  validity      String
+  deliveryTerms String
+  paymentTerms  String
+  attachments   String?         // JSON array
+  status        String          @default("draft") // draft | sent | accepted | rejected | expired
+  notes         String?
+  expiresAt     DateTime
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  rfq           RFQ             @relation(fields: [rfqId], references: [id])
+}
+
+model QuotationItem {
+  id          String    @id @default(cuid())
+  quotationId String
+  rfqItemId   String
+  partNumber  String
+  quantity    Int
+  unitPrice   Float
+  totalPrice  Float
+  moq         Int?
+  leadTime    String?
+
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+}
+
+// ─── Community Forum ───────────────────────────────────────────────────────────
+
+model ForumThread {
+  id            String       @id @default(cuid())
+  authorId      String
+  authorName    String
+  authorRole    String
+  title         String
+  content       String
+  type          String       // requirement | question | discussion | recommendation
+  tags          String       // JSON array
+  images        String?      // JSON array
+  specifications String?
+  documents     String?      // JSON array
+  replies       ForumReply[]
+  views         Int          @default(0)
+  likes         Int          @default(0)
+  solved        Boolean      @default(false)
+  bestAnswerId  String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  author        User         @relation(fields: [authorId], references: [id])
+}
+
+model ForumReply {
+  id           String      @id @default(cuid())
+  threadId     String
+  authorId     String
+  authorName   String
+  authorRole   String
+  content      String
+  productLinks String?     // JSON array
+  attachments  String?     // JSON array
+  likes        Int         @default(0)
+  helpful      Int         @default(0)
+  isAnswer     Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  thread       ForumThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author       User        @relation(fields: [authorId], references: [id])
+}
+
+// ─── Orders ───────────────────────────────────────────────────────────────────
+
+model Order {
+  id              String      @id @default(cuid())
+  customerId      String
+  supplierId      String
+  items           OrderItem[]
+  totalPrice      Float
+  status          String      @default("pending") // pending | confirmed | shipped | delivered | cancelled
+  deliveryAddress String      // JSON object
+  trackingNumber  String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  deliveredAt     DateTime?
+
+  customer        User        @relation(fields: [customerId], references: [id])
+}
+
+model OrderItem {
+  id         String  @id @default(cuid())
+  orderId    String
+  productId  String
+  quantity   Int
+  unitPrice  Float
+  totalPrice Float
+
+  order      Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product    Product @relation(fields: [productId], references: [id])
+}
