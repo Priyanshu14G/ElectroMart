@@ -6,14 +6,14 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
 // ─── User & Auth ──────────────────────────────────────────────────────────────
 
 model User {
-  id            String    @id @default(cuid())
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
   email         String    @unique
   passwordHash  String?
   name          String
@@ -35,8 +35,8 @@ model User {
 }
 
 model Account {
-  id                String  @id @default(cuid())
-  userId            String
+  id                String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String  @db.ObjectId
   type              String
   provider          String
   providerAccountId String
@@ -54,15 +54,16 @@ model Account {
 }
 
 model Session {
-  id           String   @id @default(cuid())
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
   sessionToken String   @unique
-  userId       String
+  userId       String   @db.ObjectId
   expires      DateTime
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model VerificationToken {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
   identifier String
   token      String   @unique
   expires    DateTime
@@ -73,7 +74,7 @@ model VerificationToken {
 // ─── Business / Supplier ──────────────────────────────────────────────────────
 
 model Business {
-  id              String   @id @default(cuid())
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
   name            String
   legalName       String
   description     String
@@ -113,7 +114,7 @@ model Business {
 // ─── Product Catalog ──────────────────────────────────────────────────────────
 
 model Product {
-  id                    String   @id @default(cuid())
+  id                    String   @id @default(auto()) @map("_id") @db.ObjectId
   name                  String
   category              String
   subcategory           String?
@@ -126,7 +127,7 @@ model Product {
   videos                String?  // JSON array
   datasheet             String?
 
-  supplierId            String
+  supplierId            String   @db.ObjectId
   supplier              Business @relation(fields: [supplierId], references: [id])
 
   stock                 Int      @default(0)
@@ -158,10 +159,10 @@ model Product {
 // ─── Reviews ──────────────────────────────────────────────────────────────────
 
 model Review {
-  id          String   @id @default(cuid())
-  productId   String?
-  supplierId  String?
-  userId      String
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  productId   String?  @db.ObjectId
+  supplierId  String?  @db.ObjectId
+  userId      String   @db.ObjectId
   userName    String
   rating      Int
   title       String
@@ -183,8 +184,8 @@ model Review {
 // ─── RFQ System ───────────────────────────────────────────────────────────────
 
 model RFQ {
-  id           String      @id @default(cuid())
-  customerId   String
+  id           String      @id @default(auto()) @map("_id") @db.ObjectId
+  customerId   String      @db.ObjectId
   customerName String
   title        String
   description  String
@@ -205,8 +206,8 @@ model RFQ {
 }
 
 model RFQItem {
-  id            String  @id @default(cuid())
-  rfqId         String
+  id            String  @id @default(auto()) @map("_id") @db.ObjectId
+  rfqId         String  @db.ObjectId
   partNumber    String
   componentName String
   quantity      Int
@@ -217,8 +218,8 @@ model RFQItem {
 }
 
 model Quotation {
-  id            String          @id @default(cuid())
-  rfqId         String
+  id            String          @id @default(auto()) @map("_id") @db.ObjectId
+  rfqId         String          @db.ObjectId
   supplierId    String
   supplierName  String
   items         QuotationItem[]
@@ -239,8 +240,8 @@ model Quotation {
 }
 
 model QuotationItem {
-  id          String    @id @default(cuid())
-  quotationId String
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  quotationId String    @db.ObjectId
   rfqItemId   String
   partNumber  String
   quantity    Int
@@ -255,8 +256,8 @@ model QuotationItem {
 // ─── Community Forum ───────────────────────────────────────────────────────────
 
 model ForumThread {
-  id            String       @id @default(cuid())
-  authorId      String
+  id            String       @id @default(auto()) @map("_id") @db.ObjectId
+  authorId      String       @db.ObjectId
   authorName    String
   authorRole    String
   title         String
@@ -278,9 +279,9 @@ model ForumThread {
 }
 
 model ForumReply {
-  id           String      @id @default(cuid())
-  threadId     String
-  authorId     String
+  id           String      @id @default(auto()) @map("_id") @db.ObjectId
+  threadId     String      @db.ObjectId
+  authorId     String      @db.ObjectId
   authorName   String
   authorRole   String
   content      String
@@ -299,8 +300,8 @@ model ForumReply {
 // ─── Orders ───────────────────────────────────────────────────────────────────
 
 model Order {
-  id              String      @id @default(cuid())
-  customerId      String
+  id              String      @id @default(auto()) @map("_id") @db.ObjectId
+  customerId      String      @db.ObjectId
   supplierId      String
   items           OrderItem[]
   totalPrice      Float
@@ -315,9 +316,9 @@ model Order {
 }
 
 model OrderItem {
-  id         String  @id @default(cuid())
-  orderId    String
-  productId  String
+  id         String  @id @default(auto()) @map("_id") @db.ObjectId
+  orderId    String  @db.ObjectId
+  productId  String  @db.ObjectId
   quantity   Int
   unitPrice  Float
   totalPrice Float

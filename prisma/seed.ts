@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Seeding database...');
+  console.log('🌱 Seeding MongoDB database...');
 
   // ── Users ───────────────────────────────────────────────────────────────────
   const adminPw = await bcrypt.hash('admin123', 10);
@@ -15,7 +15,7 @@ async function main() {
     where: { email: 'admin@electromart.com' },
     update: {},
     create: {
-      id: 'user_1',
+      id: '64f1a0000000000000000001',
       email: 'admin@electromart.com',
       passwordHash: adminPw,
       name: 'Admin User',
@@ -29,7 +29,7 @@ async function main() {
     where: { email: 'customer@example.com' },
     update: {},
     create: {
-      id: 'user_2',
+      id: '64f1a0000000000000000002',
       email: 'customer@example.com',
       passwordHash: customerPw,
       name: 'Rajesh Kumar',
@@ -43,7 +43,7 @@ async function main() {
     where: { email: 'business@electromart.com' },
     update: {},
     create: {
-      id: 'user_3',
+      id: '64f1a0000000000000000003',
       email: 'business@electromart.com',
       passwordHash: businessPw,
       name: 'Priya Electronics',
@@ -60,7 +60,7 @@ async function main() {
     where: { gst: '27AABCP1234H1Z0' },
     update: {},
     create: {
-      id: 'supplier_1',
+      id: '64f1b0000000000000000001',
       name: 'Phoenix Electronics India',
       legalName: 'Phoenix Electronics Private Limited',
       description: 'Leading supplier of electronic components in India with 15+ years of experience. We specialize in semiconductors, passive components, and IoT modules.',
@@ -92,7 +92,7 @@ async function main() {
     where: { gst: '09AACCT1234F1Z1' },
     update: {},
     create: {
-      id: 'supplier_2',
+      id: '64f1b0000000000000000002',
       name: 'TechCore Components',
       legalName: 'TechCore Components Ltd',
       description: 'Specialist in microcontrollers, development boards, and IoT solutions. Direct partnerships with leading manufacturers.',
@@ -122,7 +122,7 @@ async function main() {
     where: { gst: '19AAFFL1234K1Z5' },
     update: {},
     create: {
-      id: 'supplier_3',
+      id: '64f1b0000000000000000003',
       name: 'Electro Solutions Hub',
       legalName: 'Electro Solutions Hub Private Limited',
       description: 'Complete solution provider for industrial electronics, sensors, and automation components.',
@@ -154,7 +154,7 @@ async function main() {
   // ── Products ────────────────────────────────────────────────────────────────
   const products = [
     {
-      id: 'product_1',
+      id: '64f1c0000000000000000001',
       name: 'Samsung 18650 Lithium Ion Battery 3000mAh',
       category: 'battery',
       brand: 'Samsung',
@@ -163,7 +163,7 @@ async function main() {
       supplierPartNumber: 'SAM-ICR18650-30B',
       description: 'High-performance 18650 lithium-ion battery with 3000mAh capacity. Ideal for flashlights, power tools, and portable devices.',
       images: JSON.stringify(['https://images.unsplash.com/photo-1578500494198-246f612d03b3?w=400&h=400&fit=crop']),
-      supplierId: 'supplier_1',
+      supplierId: '64f1b0000000000000000001',
       stock: 450,
       minOrderQuantity: 10,
       price: 245,
@@ -179,7 +179,7 @@ async function main() {
       specs: JSON.stringify({ voltage: 3.7, capacity: 3000, chemistry: 'Lithium Ion', rechargeable: true, chargingTime: '4-5 hours', maxDischargeCurrent: 30, protectionCircuit: true, diameter: 18.3, operatingTemperature: '-10 to 65°C', dimensions: '65mm x 18.3mm', weight: 43, certifications: ['CE', 'FCC', 'RoHS'] }),
     },
     {
-      id: 'product_2',
+      id: '64f1c0000000000000000002',
       name: 'Murata 100µF 16V Ceramic Capacitor',
       category: 'capacitor',
       brand: 'Murata',
@@ -188,7 +188,7 @@ async function main() {
       supplierPartNumber: 'MUR-GRM31CR61A107KA19L',
       description: 'MLCC ceramic capacitor with 100µF capacitance and 16V rating. Surface mount (0805 package).',
       images: JSON.stringify(['https://images.unsplash.com/photo-1578926314433-d01baf8faad8?w=400&h=400&fit=crop']),
-      supplierId: 'supplier_2',
+      supplierId: '64f1b0000000000000000002',
       stock: 5000,
       minOrderQuantity: 100,
       price: 8.5,
@@ -204,7 +204,7 @@ async function main() {
       specs: JSON.stringify({ capacitance: 100, voltage: 16, tolerance: 10, dielectricType: 'Ceramic X7R', esr: 0.08, rippleCurrent: 120, packageType: 'smd', size: '0805', temperature: '-55 to 125°C', operatingTemperature: '-55 to 125°C' }),
     },
     {
-      id: 'product_3',
+      id: '64f1c0000000000000000003',
       name: 'Vishay 10kΩ 1/4W Carbon Film Resistor',
       category: 'resistor',
       brand: 'Vishay',
@@ -213,7 +213,7 @@ async function main() {
       supplierPartNumber: 'VIS-CFM-10K-1/4W',
       description: 'Metal film resistor 10kΩ with 5% tolerance. Axial leaded, ¼W power rating.',
       images: JSON.stringify(['https://images.unsplash.com/photo-1586253408359-c75ea2a9c663?w=400&h=400&fit=crop']),
-      supplierId: 'supplier_1',
+      supplierId: '64f1b0000000000000000001',
       stock: 10000,
       minOrderQuantity: 50,
       price: 0.5,
@@ -229,7 +229,7 @@ async function main() {
       specs: JSON.stringify({ resistance: 10000, tolerance: 5, powerRating: 0.25, packageType: 'through_hole', size: 'Axial', temperatureCoefficient: '±100ppm/°C', currentRating: 25 }),
     },
     {
-      id: 'product_4',
+      id: '64f1c0000000000000000004',
       name: 'STMicroelectronics STM32F103RB Microcontroller',
       category: 'microcontroller',
       brand: 'STMicroelectronics',
@@ -238,7 +238,7 @@ async function main() {
       supplierPartNumber: 'STM-STM32F103RBT6',
       description: 'ARM Cortex-M3 microcontroller with 128KB Flash, 20KB SRAM. Popular for industrial and embedded applications.',
       images: JSON.stringify(['https://images.unsplash.com/photo-1517420681949-d78e60b893e2?w=400&h=400&fit=crop']),
-      supplierId: 'supplier_3',
+      supplierId: '64f1b0000000000000000003',
       stock: 280,
       minOrderQuantity: 5,
       price: 2450,
@@ -254,7 +254,7 @@ async function main() {
       specs: JSON.stringify({ flash: 128, ram: 20, core: 'ARM Cortex-M3', architecture: '32-bit', frequency: 72, adc: 3, gpio: 80, timers: 4, pwm: 12, uart: 3, spi: 2, i2c: 2, packageType: 'LQFP100', powerConsumption: '45mA @ 72MHz', operatingTemperature: '-40 to 85°C' }),
     },
     {
-      id: 'product_5',
+      id: '64f1c0000000000000000005',
       name: 'Arduino Uno R3 Development Board',
       category: 'development_board',
       brand: 'Arduino',
@@ -263,7 +263,7 @@ async function main() {
       supplierPartNumber: 'ARD-UNO-R3',
       description: 'Official Arduino Uno R3 board with ATmega328P microcontroller. Includes USB interface and prototyping area.',
       images: JSON.stringify(['https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?w=400&h=400&fit=crop']),
-      supplierId: 'supplier_2',
+      supplierId: '64f1b0000000000000000002',
       stock: 150,
       minOrderQuantity: 1,
       price: 3200,
@@ -279,7 +279,7 @@ async function main() {
       specs: JSON.stringify({ core: 'ATmega328P', flash: 32, ram: 2, frequency: 16, gpio: 20, pwm: 6, uart: 1, spi: 1, i2c: 1, packageType: 'DIP-28', operatingTemperature: '-40 to 85°C' }),
     },
     {
-      id: 'product_6',
+      id: '64f1c0000000000000000006',
       name: 'DHT22 Temperature & Humidity Sensor',
       category: 'sensor',
       brand: 'Aosong',
@@ -288,7 +288,7 @@ async function main() {
       supplierPartNumber: 'DHT22-SENSOR',
       description: 'Digital temperature and humidity sensor with excellent accuracy. Operating range: -40 to 80°C.',
       images: JSON.stringify(['https://images.unsplash.com/photo-1596994871424-f6fde58e3ee1?w=400&h=400&fit=crop']),
-      supplierId: 'supplier_1',
+      supplierId: '64f1b0000000000000000001',
       stock: 600,
       minOrderQuantity: 10,
       price: 425,
@@ -304,7 +304,7 @@ async function main() {
       specs: JSON.stringify({ type: 'Digital Temperature & Humidity', outputType: 'Digital (1-wire)', rangeMin: -40, rangeMax: 80, accuracy: '±0.5°C', supplyVoltage: '3.3V - 5V', operatingTemperature: '-40 to 80°C', packageType: 'Through-hole' }),
     },
     {
-      id: 'product_7',
+      id: '64f1c0000000000000000007',
       name: 'Hirose DF13 6-Pin Connector',
       category: 'connector',
       brand: 'Hirose',
@@ -313,7 +313,7 @@ async function main() {
       supplierPartNumber: 'HIR-DF13-6DS',
       description: 'JST-compatible 6-pin right-angle connector. Commonly used in drone and robotics applications.',
       images: JSON.stringify(['https://images.unsplash.com/photo-1622244898842-c5ce4baf6835?w=400&h=400&fit=crop']),
-      supplierId: 'supplier_3',
+      supplierId: '64f1b0000000000000000003',
       stock: 2000,
       minOrderQuantity: 20,
       price: 65,
@@ -329,7 +329,7 @@ async function main() {
       specs: JSON.stringify({ pitch: 2.0, currentRating: 3, voltageRating: 250, orientation: 'Right-angle', gender: 'male', pins: 6, connectorType: 'Header', mountingType: 'Through-hole', housingMaterial: 'Polyamide', ipRating: 'IP20' }),
     },
     {
-      id: 'product_8',
+      id: '64f1c0000000000000000008',
       name: '5mm Red LED 20mA',
       category: 'led',
       brand: 'Kingbright',
@@ -338,7 +338,7 @@ async function main() {
       supplierPartNumber: 'KB-LED-5MM-RED',
       description: 'Standard 5mm red LED with 20mA forward current. Bright and reliable for all LED applications.',
       images: JSON.stringify(['https://images.unsplash.com/photo-1580274455191-1c62238fa333?w=400&h=400&fit=crop']),
-      supplierId: 'supplier_2',
+      supplierId: '64f1b0000000000000000002',
       stock: 5000,
       minOrderQuantity: 100,
       price: 2.5,
@@ -354,7 +354,7 @@ async function main() {
       specs: JSON.stringify({ color: 'Red', wavelength: 625, luminousIntensity: 800, forwardCurrent: 20, forwardVoltage: 2.0, packageType: '5mm DIP', operatingTemperature: '-10 to 60°C', viewingAngle: 20 }),
     },
     {
-      id: 'product_9',
+      id: '64f1c0000000000000000009',
       name: 'ESP32 WROOM DevKit IoT Module',
       category: 'iot',
       brand: 'Espressif',
@@ -363,7 +363,7 @@ async function main() {
       supplierPartNumber: 'ESP-DEVKIT-32D',
       description: 'Dual-core WiFi + Bluetooth development module. Perfect for IoT projects with 38 GPIO pins.',
       images: JSON.stringify(['https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&h=400&fit=crop']),
-      supplierId: 'supplier_3',
+      supplierId: '64f1b0000000000000000003',
       stock: 320,
       minOrderQuantity: 5,
       price: 850,
@@ -379,7 +379,7 @@ async function main() {
       specs: JSON.stringify({ core: 'Xtensa dual-core LX6', frequency: 240, flash: 4, ram: 520, wifi: true, bluetooth: true, gpio: 38, adc: 18, dac: 2, uart: 3, spi: 4, i2c: 2, operatingTemperature: '-40 to 85°C', packageType: 'Module' }),
     },
     {
-      id: 'product_10',
+      id: '64f1c0000000000000000010',
       name: 'L298N Dual H-Bridge Motor Driver',
       category: 'motor',
       brand: 'STMicroelectronics',
@@ -388,7 +388,7 @@ async function main() {
       supplierPartNumber: 'STM-L298N-MODULE',
       description: 'Dual full-bridge driver for DC motors and stepper motors. Drive 2 DC motors or 1 stepper motor.',
       images: JSON.stringify(['https://images.unsplash.com/photo-1563207153-f403bf289096?w=400&h=400&fit=crop']),
-      supplierId: 'supplier_1',
+      supplierId: '64f1b0000000000000000001',
       stock: 800,
       minOrderQuantity: 5,
       price: 185,
@@ -404,7 +404,7 @@ async function main() {
       specs: JSON.stringify({ type: 'Dual H-Bridge', supplyVoltage: '5-35V', maxCurrent: 2, peakCurrent: 3, logicVoltage: '5V', operatingTemperature: '-20 to 130°C', packageType: 'Module' }),
     },
     {
-      id: 'product_11',
+      id: '64f1c0000000000000000011',
       name: 'Omron G5LE 12V SPDT Relay',
       category: 'relay',
       brand: 'Omron',
@@ -413,7 +413,7 @@ async function main() {
       supplierPartNumber: 'OMR-G5LE-12V',
       description: '12V coil SPDT relay with 10A contact rating. PCB mount. Ideal for switching AC loads.',
       images: JSON.stringify(['https://images.unsplash.com/photo-1604754742629-3e5728249d73?w=400&h=400&fit=crop']),
-      supplierId: 'supplier_3',
+      supplierId: '64f1b0000000000000000003',
       stock: 1500,
       minOrderQuantity: 10,
       price: 95,
@@ -429,7 +429,7 @@ async function main() {
       specs: JSON.stringify({ coilVoltage: 12, contactType: 'SPDT', contactRating: 10, contactVoltage: 250, mountingType: 'Through-hole', operatingTemperature: '-40 to 70°C', packageType: 'PCB Mount' }),
     },
     {
-      id: 'product_12',
+      id: '64f1c0000000000000000012',
       name: 'SSD1306 0.96" OLED Display Module',
       category: 'display',
       brand: 'Solomon Systech',
@@ -438,7 +438,7 @@ async function main() {
       supplierPartNumber: 'OLED-096-I2C',
       description: '128x64 pixel OLED display with I2C interface. 0.96 inch, white pixels. No backlight needed.',
       images: JSON.stringify(['https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop']),
-      supplierId: 'supplier_2',
+      supplierId: '64f1b0000000000000000002',
       stock: 750,
       minOrderQuantity: 5,
       price: 280,
@@ -468,10 +468,10 @@ async function main() {
   // ── Reviews ──────────────────────────────────────────────────────────────────
   const reviews = [
     {
-      id: 'review_1',
-      productId: 'product_1',
-      supplierId: 'supplier_1',
-      userId: 'user_2',
+      id: '64f1d0000000000000000001',
+      productId: '64f1c0000000000000000001',
+      supplierId: '64f1b0000000000000000001',
+      userId: '64f1a0000000000000000002',
       userName: 'Rajesh Kumar',
       rating: 5,
       title: 'Excellent Quality Batteries',
@@ -482,10 +482,10 @@ async function main() {
       categories: JSON.stringify({ quality: 5, originality: 5, packaging: 5, price: 4, delivery: 5, support: 5 }),
     },
     {
-      id: 'review_2',
-      productId: 'product_2',
-      supplierId: 'supplier_2',
-      userId: 'user_2',
+      id: '64f1d0000000000000000002',
+      productId: '64f1c0000000000000000002',
+      supplierId: '64f1b0000000000000000002',
+      userId: '64f1a0000000000000000002',
       userName: 'Priya Sharma',
       rating: 4,
       title: 'Good capacitors, Fast delivery',
@@ -496,10 +496,10 @@ async function main() {
       categories: JSON.stringify({ quality: 4, originality: 4, packaging: 4, price: 4, delivery: 5, support: 4 }),
     },
     {
-      id: 'review_3',
-      productId: 'product_4',
-      supplierId: 'supplier_3',
-      userId: 'user_2',
+      id: '64f1d0000000000000000003',
+      productId: '64f1c0000000000000000004',
+      supplierId: '64f1b0000000000000000003',
+      userId: '64f1a0000000000000000002',
       userName: 'Amit Singh',
       rating: 5,
       title: 'Genuine STM32 chips',
@@ -523,11 +523,11 @@ async function main() {
 
   // ── Forum Threads ────────────────────────────────────────────────────────────
   await prisma.forumThread.upsert({
-    where: { id: 'thread_1' },
+    where: { id: '64f1e0000000000000000001' },
     update: {},
     create: {
-      id: 'thread_1',
-      authorId: 'user_2',
+      id: '64f1e0000000000000000001',
+      authorId: '64f1a0000000000000000002',
       authorName: 'Rajesh Kumar',
       authorRole: 'customer',
       title: 'Looking for 470µF Capacitor with ESR < 0.02Ω',
@@ -544,11 +544,11 @@ async function main() {
 
   // ── RFQs ─────────────────────────────────────────────────────────────────────
   await prisma.rFQ.upsert({
-    where: { id: 'rfq_1' },
+    where: { id: '64f1f0000000000000000001' },
     update: {},
     create: {
-      id: 'rfq_1',
-      customerId: 'user_2',
+      id: '64f1f0000000000000000001',
+      customerId: '64f1a0000000000000000002',
       customerName: 'Rajesh Kumar',
       title: 'Electronic Components for Solar Charger Project',
       description: 'We need to procure components for a portable solar charger. See BOM attached.',
@@ -561,15 +561,15 @@ async function main() {
       expiresAt: new Date('2027-08-10'),
       items: {
         create: [
-          { id: 'rfq_item_1', partNumber: 'STM32F103RBT6', componentName: 'STM32F103RB Microcontroller', quantity: 50, specifications: '128KB Flash, 20KB RAM' },
-          { id: 'rfq_item_2', partNumber: 'DHT22', componentName: 'Temperature Humidity Sensor', quantity: 100 },
+          { id: '64f1f1000000000000000001', partNumber: 'STM32F103RBT6', componentName: 'STM32F103RB Microcontroller', quantity: 50, specifications: '128KB Flash, 20KB RAM' },
+          { id: '64f1f1000000000000000002', partNumber: 'DHT22', componentName: 'Temperature Humidity Sensor', quantity: 100 },
         ],
       },
     },
   });
 
   console.log('✅ RFQs seeded');
-  console.log('\n🎉 Database seeded successfully!');
+  console.log('\n🎉 MongoDB database seeded successfully!');
   console.log('\n📋 Demo Credentials:');
   console.log('   Admin:    admin@electromart.com / admin123');
   console.log('   Customer: customer@example.com  / customer123');

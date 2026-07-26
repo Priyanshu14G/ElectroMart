@@ -37,18 +37,25 @@ const CATEGORY_META: Record<string, string> = {
 
 export async function GET() {
   try {
-    // Get product counts per category from DB
-    const categoryCounts = await prisma.product.groupBy({
-      by: ['category'],
-      _count: { id: true },
-      orderBy: { _count: { id: 'desc' } },
+    // Get product categories from MongoDB
+    const products = await prisma.product.findMany({
+      select: { category: true },
     });
 
-    const categories = categoryCounts.map((c) => ({
-      id: c.category,
-      name: CATEGORY_META[c.category] || c.category,
-      count: c._count.id,
-    }));
+    const categoryMap: Record<string, number> = {};
+    products.forEach((p) => {
+      if (p.category) {
+        categoryMap[p.category] = (categoryMap[p.category] || 0) + 1;
+      }
+    });
+
+    const categories = Object.entries(categoryMap)
+      .map(([cat, count]) => ({
+        id: cat,
+        name: CATEGORY_META[cat] || cat,
+        count,
+      }))
+      .sort((a, b) => b.count - a.count);
 
     return NextResponse.json({ categories });
   } catch (error) {
