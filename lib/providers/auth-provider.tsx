@@ -19,11 +19,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check for existing session on mount
+  // Check for existing session on mount and listen for changes
   useEffect(() => {
-    const currentUser = authUtils.getCurrentUser();
-    setUser(currentUser);
-    setIsLoading(false);
+    const syncUser = () => {
+      const currentUser = authUtils.getCurrentUser();
+      setUser(currentUser);
+      setIsLoading(false);
+    };
+
+    syncUser();
+
+    window.addEventListener('auth-change', syncUser);
+    window.addEventListener('storage', syncUser);
+
+    return () => {
+      window.removeEventListener('auth-change', syncUser);
+      window.removeEventListener('storage', syncUser);
+    };
   }, []);
 
   const login = async (email: string, password: string) => {

@@ -113,7 +113,7 @@ export function Header() {
                     alt={user?.name}
                     className="h-6 w-6 rounded-full"
                   />
-                  <span className="hidden sm:inline text-sm">{user?.name.split(' ')[0]}</span>
+                  <span className="hidden sm:inline text-sm">{user?.name ? user.name.split(' ')[0] : 'User'}</span>
                 </button>
 
                 {/* User Dropdown Menu */}
@@ -133,7 +133,7 @@ export function Header() {
                         </Link>
                       )}
                       {user?.role === 'customer' && (
-                        <Link href="/customer/dashboard" className="block px-4 py-2 text-sm hover:bg-muted">
+                        <Link href="/dashboard" className="block px-4 py-2 text-sm hover:bg-muted">
                           My Dashboard
                         </Link>
                       )}

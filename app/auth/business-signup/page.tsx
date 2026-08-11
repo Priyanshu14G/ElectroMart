@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
@@ -19,6 +20,7 @@ import {
 import { Header } from '@/components/layouts/header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { authUtils } from '@/lib/utils/auth';
 
 export default function BusinessSignupPage() {
   const router = useRouter();
@@ -77,13 +79,50 @@ export default function BusinessSignupPage() {
     setLoading(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Step 1: Register the business user in MongoDB via API
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          name: formData.businessName,
+          role: 'business_owner',
+          phone: formData.phone || undefined,
+        }),
+      });
 
-      localStorage.setItem('user', JSON.stringify({
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'Registration failed. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      // Step 2: Sign in with NextAuth so a session is created
+      const signInResult = await signIn('credentials', {
+        email: formData.email,
+        password: formData.password,
+        redirect: false,
+      });
+
+      if (signInResult?.error) {
+        setError('Account created but login failed. Please log in manually.');
+        router.push('/auth/login');
+        return;
+      }
+
+      // Step 3: Store user in local authUtils session
+      authUtils.setCurrentUser({
+        id: data.user?.id || `biz_${Date.now()}`,
         email: formData.email,
         name: formData.businessName,
         role: 'business_owner',
-      }));
+        avatar: data.user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(formData.businessName)}`,
+        createdAt: data.user?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
 
       router.push('/seller/dashboard');
     } catch (err) {
@@ -430,7 +469,7 @@ export default function BusinessSignupPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full h-11"
+                    className="w-1/2 h-11"
                     onClick={() => setStep(step - 1)}
                   >
                     Previous

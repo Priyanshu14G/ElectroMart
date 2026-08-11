@@ -9,6 +9,7 @@ import { Header } from '@/components/layouts/header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { signIn } from 'next-auth/react';
+import { authUtils } from '@/lib/utils/auth';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -31,9 +32,45 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        setError('Invalid email or password. Try: customer@example.com / customer123');
+        setError('Invalid email or password. Please check your credentials and try again.');
       } else {
-        router.push('/dashboard');
+        // Fetch real user details from MongoDB database
+        let dbUser = null;
+        try {
+          const userRes = await fetch('/api/auth/me', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+          });
+          if (userRes.ok) {
+            const userData = await userRes.json();
+            dbUser = userData.user;
+          }
+        } catch (e) {
+          console.warn('Could not fetch DB user profile:', e);
+        }
+
+        const namePart = email.split('@')[0] || 'User';
+        const fallbackName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+
+        const resolvedRole = dbUser?.role || (email.includes('business') ? 'business_owner' : 'customer');
+
+        authUtils.setCurrentUser({
+          id: dbUser?.id || email,
+          email: dbUser?.email || email,
+          name: dbUser?.name || fallbackName,
+          role: resolvedRole,
+          avatar: dbUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(dbUser?.name || fallbackName)}`,
+          createdAt: dbUser?.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+
+        // Role-based redirect: sellers go to seller dashboard, customers to customer dashboard
+        if (resolvedRole === 'business_owner' || resolvedRole === 'seller') {
+          router.push('/seller/dashboard');
+        } else {
+          router.push('/dashboard');
+        }
         router.refresh();
       }
     } catch (err) {

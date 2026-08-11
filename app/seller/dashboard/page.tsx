@@ -18,6 +18,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { Header } from '@/components/layouts/header';
+import { authUtils } from '@/lib/utils/auth';
 import { Footer } from '@/components/layouts/footer';
 import { Button } from '@/components/ui/button';
 import { allProducts } from '@/lib/mock-data';
@@ -29,20 +30,24 @@ export default function SellerDashboardPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders' | 'analytics'>('overview');
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (!userData) {
+    const currentUser = authUtils.getCurrentUser() || (typeof window !== 'undefined' && localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!) : null);
+    if (!currentUser) {
       router.push('/auth/business-signup');
-    } else {
-      const parsed = JSON.parse(userData);
-      if (parsed.role !== 'business_owner') {
-        router.push('/auth/business-signup');
-      }
-      setUser(parsed);
-      setLoading(false);
+      return;
     }
+
+    // Customers are not allowed on the seller dashboard
+    if (currentUser.role !== 'business_owner' && currentUser.role !== 'seller') {
+      router.push('/dashboard');
+      return;
+    }
+
+    setUser(currentUser);
+    setLoading(false);
   }, [router]);
 
   const handleLogout = () => {
+    authUtils.logout();
     localStorage.removeItem('user');
     router.push('/');
   };

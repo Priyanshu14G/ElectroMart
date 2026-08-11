@@ -6,34 +6,16 @@ import { motion } from 'framer-motion';
 import { Star, MapPin, CheckCircle, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getSuppliers, type ApiSupplier } from '@/lib/api';
+import { mockSuppliers } from '@/lib/mock-data';
 
 export function FeaturedSuppliers() {
-  const [featured, setFeatured] = useState<ApiSupplier[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [featured, setFeatured] = useState<ApiSupplier[]>(mockSuppliers.slice(0, 3) as any);
 
   useEffect(() => {
     getSuppliers({ verified: true, limit: 3 })
       .then((res) => setFeatured(res.suppliers.slice(0, 3)))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+      .catch(console.error);
   }, []);
-
-  if (loading) {
-    return (
-      <section className="py-16 sm:py-24 bg-background">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <div className="h-9 w-64 bg-muted animate-pulse rounded mx-auto mb-4" />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="bg-muted rounded-xl h-80 animate-pulse" />
-            ))}
-          </div>
-        </div>
-      </section>
-    );
-  }
 
   return (
     <section className="py-16 sm:py-24 bg-background">

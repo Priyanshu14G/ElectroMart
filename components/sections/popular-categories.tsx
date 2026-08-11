@@ -18,6 +18,7 @@ import {
   Puzzle,
 } from 'lucide-react';
 import { getCategories, type ApiCategory } from '@/lib/api';
+import { mockCategories } from '@/lib/mock-data';
 
 const categoryIcons: Record<string, React.ReactNode> = {
   battery: <Battery className="h-8 w-8" />,
@@ -37,14 +38,12 @@ const categoryIcons: Record<string, React.ReactNode> = {
 };
 
 export function PopularCategories() {
-  const [categories, setCategories] = useState<ApiCategory[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState<ApiCategory[]>(mockCategories);
 
   useEffect(() => {
     getCategories()
       .then((res) => setCategories(res.categories))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+      .catch(console.error);
   }, []);
 
   const displayCategories = categories.slice(0, 12);

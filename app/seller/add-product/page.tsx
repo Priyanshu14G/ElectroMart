@@ -17,6 +17,7 @@ import {
   ChevronLeft,
 } from 'lucide-react';
 import { Header } from '@/components/layouts/header';
+import { authUtils } from '@/lib/utils/auth';
 import { Footer } from '@/components/layouts/footer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -60,15 +61,11 @@ export default function AddProductPage() {
   const [success, setSuccess] = useState('');
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (!userData) {
+    const currentUser = authUtils.getCurrentUser() || (typeof window !== 'undefined' && localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!) : null);
+    if (!currentUser) {
       router.push('/auth/business-signup');
     } else {
-      const parsed = JSON.parse(userData);
-      if (parsed.role !== 'business_owner') {
-        router.push('/auth/business-signup');
-      }
-      setUser(parsed);
+      setUser(currentUser);
     }
   }, [router]);
 

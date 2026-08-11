@@ -16,30 +16,38 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
-        });
+        try {
+          const user = await Promise.race([
+            prisma.user.findUnique({
+              where: { email: credentials.email as string },
+            }),
+            new Promise<null>((_, reject) =>
+              setTimeout(() => reject(new Error('DB Timeout')), 1000)
+            ),
+          ]);
 
-        if (!user || !user.passwordHash) {
+          if (user && user.passwordHash) {
+            const isPasswordValid = await bcrypt.compare(
+              credentials.password as string,
+              user.passwordHash
+            );
+
+            if (isPasswordValid) {
+              return {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                role: user.role,
+                image: user.avatar,
+              };
+            }
+          }
+        } catch (dbError) {
+          console.warn('NextAuth DB authorize warning:', dbError);
           return null;
         }
 
-        const isPasswordValid = await bcrypt.compare(
-          credentials.password as string,
-          user.passwordHash
-        );
-
-        if (!isPasswordValid) {
-          return null;
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          image: user.avatar,
-        };
+        return null;
       },
     }),
   ],

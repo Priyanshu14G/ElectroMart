@@ -131,11 +131,29 @@ export const authUtils = {
     }
   },
 
+  /* Set Current User Session */
+  setCurrentUser: (user: User): void => {
+    if (typeof window === 'undefined') return;
+
+    const session: AuthSession = {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      token: `token_${Date.now()}`,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    };
+
+    localStorage.setItem(AUTH_KEY, JSON.stringify(session));
+    localStorage.setItem(USER_DATA_KEY, JSON.stringify(user));
+    window.dispatchEvent(new Event('auth-change'));
+  },
+
   /* Logout */
   logout: (): void => {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(AUTH_KEY);
     localStorage.removeItem(USER_DATA_KEY);
+    window.dispatchEvent(new Event('auth-change'));
   },
 
   /* Is Authenticated */

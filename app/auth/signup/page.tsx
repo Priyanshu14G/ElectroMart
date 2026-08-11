@@ -8,6 +8,7 @@ import { User, Mail, Phone, Lock, Eye, EyeOff, ArrowRight, CheckCircle } from 'l
 import { Header } from '@/components/layouts/header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { authUtils } from '@/lib/utils/auth';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -68,6 +69,24 @@ export default function SignupPage() {
         setError(data.error || 'Signup failed. Please try again.');
         return;
       }
+
+      // Set session in authUtils
+      const registeredUser = data.user || {
+        id: `user_${Date.now()}`,
+        email: formData.email,
+        name: formData.name,
+        role: 'customer',
+      };
+
+      authUtils.setCurrentUser({
+        id: registeredUser.id,
+        email: registeredUser.email,
+        name: registeredUser.name,
+        role: registeredUser.role || 'customer',
+        avatar: registeredUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(registeredUser.name)}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
 
       // Auto-login after successful registration
       const { signIn } = await import('next-auth/react');

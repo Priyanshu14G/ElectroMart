@@ -1,27 +1,68 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { User, Mail, Phone, MapPin, Shield, Settings, LogOut } from 'lucide-react';
 import { Header } from '@/components/layouts/header';
 import { Footer } from '@/components/layouts/footer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { authUtils } from '@/lib/utils/auth';
+import { useRouter } from 'next/navigation';
 
 export default function ProfilePage() {
+  const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
-  const [profile, setProfile] = useState({
-    name: 'Rajesh Kumar',
-    email: 'rajesh.kumar@example.com',
-    phone: '+91 98765 43210',
-    location: 'Bangalore, Karnataka',
-    company: 'TechCore Electronics',
-    bio: 'Electronics enthusiast and component supplier',
-  });
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+ useEffect(() => {
+    // Fetch logged in user dynamically from authUtils / localStorage
+    const currentUser = authUtils.getCurrentUser() || (typeof window !== 'undefined' && localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!) : null);
+    if (!currentUser) {
+      router.push('/auth/login');
+      return;
+    }
+
+    setUser(currentUser);
+    setLoading(false);
+
+    // Refresh dynamic user profile directly from MongoDB database
+    if (currentUser.email) {
+      fetch('/api/auth/me', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: currentUser.email }),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.user) {
+            setUser(data.user);
+            authUtils.setCurrentUser(data.user);
+          }
+        })
+        .catch((err) => console.warn('Could not refresh user from DB:', err));
+    }
+  }, [router]);
+
+
+
 
   const handleLogout = () => {
     window.location.href = '/';
   };
+
+  if (loading || !user) {
+    return (
+      <>
+        <Header />
+        <main className="min-h-screen bg-background flex items-center justify-center">
+          <div className="text-muted-foreground animate-pulse">Loading profile...</div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
 
   return (
     <>
@@ -37,10 +78,10 @@ export default function ProfilePage() {
             >
               <div className="flex flex-col items-center text-center">
                 <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-4xl text-white mb-4">
-                  {profile.name.charAt(0)}
+                  {user.name ? user.name.charAt(0) : 'U'}
                 </div>
-                <h2 className="text-2xl font-bold mb-1">{profile.name}</h2>
-                <p className="text-muted-foreground text-sm mb-4">{profile.company}</p>
+                <h2 className="text-2xl font-bold mb-1">{user.name}</h2>
+                <p className="text-muted-foreground text-sm mb-4">{user.company}</p>
                 <div className="w-full space-y-2">
                   <Button variant="outline" className="w-full" onClick={() => setIsEditing(!isEditing)}>
                     <Settings className="h-4 w-4 mr-2" />
@@ -87,9 +128,9 @@ export default function ProfilePage() {
                     Full Name
                   </label>
                   <Input
-                    value={profile.name}
+                    value={user.name || ''}
                     disabled={!isEditing}
-                    onChange={(e) => isEditing && setProfile({...profile, name: e.target.value})}
+                    onChange={(e) => isEditing && setUser({...user, name: e.target.value})}
                     className="disabled:bg-muted"
                   />
                 </div>
@@ -100,9 +141,9 @@ export default function ProfilePage() {
                     Email Address
                   </label>
                   <Input
-                    value={profile.email}
+                    value={user.email || ''}
                     disabled={!isEditing}
-                    onChange={(e) => isEditing && setProfile({...profile, email: e.target.value})}
+                    onChange={(e) => isEditing && setUser({...user, email: e.target.value})}
                     className="disabled:bg-muted"
                   />
                 </div>
@@ -113,9 +154,9 @@ export default function ProfilePage() {
                     Phone Number
                   </label>
                   <Input
-                    value={profile.phone}
+                    value={user.phone || ''}
                     disabled={!isEditing}
-                    onChange={(e) => isEditing && setProfile({...profile, phone: e.target.value})}
+                    onChange={(e) => isEditing && setUser({...user, phone: e.target.value})}
                     className="disabled:bg-muted"
                   />
                 </div>
@@ -126,9 +167,9 @@ export default function ProfilePage() {
                     Location
                   </label>
                   <Input
-                    value={profile.location}
+                    value={user.location || ''}
                     disabled={!isEditing}
-                    onChange={(e) => isEditing && setProfile({...profile, location: e.target.value})}
+                    onChange={(e) => isEditing && setUser({...user, location: e.target.value})}
                     className="disabled:bg-muted"
                   />
                 </div>

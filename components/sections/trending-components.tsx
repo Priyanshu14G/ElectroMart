@@ -6,35 +6,16 @@ import { motion } from 'framer-motion';
 import { Star, ShoppingCart, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getProducts, type ApiProduct } from '@/lib/api';
+import { mockProducts } from '@/lib/mock-data';
 
 export function TrendingComponents() {
-  const [trending, setTrending] = useState<ApiProduct[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [trending, setTrending] = useState<ApiProduct[]>(mockProducts.slice(0, 6) as any);
 
   useEffect(() => {
     getProducts({ limit: 6, sort: 'rating_desc' })
       .then((res) => setTrending(res.products))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+      .catch(console.error);
   }, []);
-
-  if (loading) {
-    return (
-      <section className="py-16 sm:py-24 bg-muted/50">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <div className="h-9 w-64 bg-muted animate-pulse rounded mx-auto mb-4" />
-            <div className="h-4 w-96 bg-muted animate-pulse rounded mx-auto" />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="bg-background rounded-lg border border-border h-72 animate-pulse" />
-            ))}
-          </div>
-        </div>
-      </section>
-    );
-  }
 
   return (
     <section className="py-16 sm:py-24 bg-muted/50">

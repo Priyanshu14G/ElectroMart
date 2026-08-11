@@ -20,6 +20,7 @@ import { Header } from '@/components/layouts/header';
 import { Footer } from '@/components/layouts/footer';
 import { Button } from '@/components/ui/button';
 import { mockRFQs, allProducts } from '@/lib/mock-data';
+import { authUtils } from '@/lib/utils/auth';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -28,17 +29,42 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is logged in
-    const userData = localStorage.getItem('user');
-    if (!userData) {
+    // Fetch logged in user dynamically from authUtils / localStorage
+    const currentUser = authUtils.getCurrentUser() || (typeof window !== 'undefined' && localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!) : null);
+    if (!currentUser) {
       router.push('/auth/login');
-    } else {
-      setUser(JSON.parse(userData));
-      setLoading(false);
+      return;
+    }
+
+    // Sellers are not allowed on the customer dashboard
+    if (currentUser.role === 'business_owner' || currentUser.role === 'seller') {
+      router.push('/seller/dashboard');
+      return;
+    }
+
+    setUser(currentUser);
+    setLoading(false);
+
+    // Refresh dynamic user profile directly from MongoDB database
+    if (currentUser.email) {
+      fetch('/api/auth/me', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: currentUser.email }),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.user) {
+            setUser(data.user);
+            authUtils.setCurrentUser(data.user);
+          }
+        })
+        .catch((err) => console.warn('Could not refresh user from DB:', err));
     }
   }, [router]);
 
   const handleLogout = () => {
+    authUtils.logout();
     localStorage.removeItem('user');
     router.push('/');
   };
@@ -69,17 +95,17 @@ export default function DashboardPage() {
             className="mb-8 flex items-center justify-between"
           >
             <div>
-              <h1 className="text-4xl font-bold mb-2">Welcome, {user?.name || 'User'}</h1>
-              <p className="text-muted-foreground">{user?.email}</p>
+              <h1 className="text-4xl font-bold mb-2">Welcome {user?.name || 'User'},</h1>
+              {/* <p className="text-muted-foreground">{user?.email}</p> */}
             </div>
-            <Button
+            {/* <Button
               variant="outline"
               onClick={handleLogout}
               className="gap-2"
             >
               <LogOut className="h-4 w-4" />
               Sign Out
-            </Button>
+            </Button> */}
           </motion.div>
 
           {/* Navigation Tabs */}
