@@ -423,11 +423,12 @@ export async function GET(request: NextRequest) {
 
     const businessBadges = safeJsonParse(business.badges, {});
     const businessStats = safeJsonParse(business.stats, {});
-    const resolvedBusinessStatus =
-      (business as any).status ||
-      businessBadges.status ||
-      businessStats.status ||
-      (businessBadges.verified === true ? 'approved' : 'pending');
+    const isApproved =
+      businessBadges.status === 'approved' ||
+      businessBadges.verified === true ||
+      businessStats.status === 'approved' ||
+      (business as any).status === 'approved';
+    const resolvedBusinessStatus = isApproved ? 'approved' : 'pending';
 
     return NextResponse.json({
       business: {

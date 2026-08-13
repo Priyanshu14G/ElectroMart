@@ -2,6 +2,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { mockProducts } from '@/lib/mock-data';
 
+function safeJsonParse(value: string | null | undefined, fallback: any = {}) {
+  if (!value) return fallback;
+  try {
+    return typeof value === 'string' ? JSON.parse(value) : value;
+  } catch {
+    return fallback;
+  }
+}
+
+const isMongoId = (id: string) => /^[0-9a-fA-F]{24}$/.test(id);
+
+function withTimeout<T>(promise: Promise<T>, ms = 800): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('DB Timeout')), ms)),
+  ]);
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -21,8 +39,6 @@ export async function GET(request: NextRequest) {
     const where: any = {};
 
     if (query) {
-      // SQLite doesn't support mode:'insensitive' — use contains without mode
-      // (SQLite LIKE is case-insensitive for ASCII characters by default)
       where.OR = [
         { name: { contains: query } },
         { description: { contains: query } },
@@ -35,7 +51,6 @@ export async function GET(request: NextRequest) {
     }
 
     if (category) {
-      // SQLite LIKE is case-insensitive for ASCII — contains works fine
       where.category = { contains: category };
     }
 
@@ -60,10 +75,14 @@ export async function GET(request: NextRequest) {
     // Admin/Seller status filter vs Public filter
     const statusParam = searchParams.get('status');
     if (statusParam) {
-      where.status = statusParam;
+      if (statusParam === 'approved') {
+        where.lifecycle = 'active';
+      } else {
+        where.lifecycle = statusParam;
+      }
     } else if (!supplierId) {
       // Public marketplace search only shows approved products
-      where.status = 'approved';
+      where.lifecycle = 'active';
     }
 
     // Dynamic component attributes filters
@@ -72,14 +91,12 @@ export async function GET(request: NextRequest) {
       'rippleCurrent', 'temperature', 'caseSize', 'dimensions', 'mounting',
       'termination', 'resistance', 'powerRating', 'tempCoefficient', 'technology'
     ];
-    
-    for (const attr of dynamicAttrs) {
-      const val = searchParams.getAll(attr); // e.g., ?capacitance=1uf-10uf&capacitance=10uf-100uf
-      if (val.length > 0) {
-        // If multiple values selected for the same filter, OR them together
-        where[attr] = { in: val };
+    dynamicAttrs.forEach((attr) => {
+      const val = searchParams.get(attr);
+      if (val) {
+        where[attr] = val;
       }
-    }
+    });
 
     // Build orderBy
     const [sortField, sortDir] = sort.split('_');
@@ -92,13 +109,6 @@ export async function GET(request: NextRequest) {
     }
 
     const skip = (page - 1) * limit;
-
-function withTimeout<T>(promise: Promise<T>, ms = 500): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('DB Timeout')), ms)),
-  ]);
-}
 
     const [products, total] = await withTimeout(
       Promise.all([
@@ -123,8 +133,7 @@ function withTimeout<T>(promise: Promise<T>, ms = 500): Promise<T> {
       ])
     );
 
-    // Parse JSON fields
-    const parsedProducts = products.map((p: { images: string | null | undefined; specs: string | null | undefined; supplier: { badges: string | null | undefined; address: string | null | undefined; }; }) => ({
+    const parsedProducts = products.map((p: any) => ({
       ...p,
       images: safeJsonParse(p.images, []),
       specs: safeJsonParse(p.specs, null),
@@ -137,89 +146,80 @@ function withTimeout<T>(promise: Promise<T>, ms = 500): Promise<T> {
         : null,
     }));
 
-    if (parsedProducts.length > 0) {
-      return NextResponse.json({
-        products: parsedProducts,
+    const totalPages = Math.ceil(total / limit);
+
+    return NextResponse.json({
+      products: parsedProducts,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasMore: page < totalPages,
+      },
+    });
+  } catch (error: any) {
+    console.warn('DB search failed or timed out, returning fallback mock products:', error);
+    // Return mock products fallback
+    let filtered = [...mockProducts];
+    const { searchParams } = new URL(request.url);
+    const query = searchParams.get('q')?.toLowerCase();
+    const category = searchParams.get('category')?.toLowerCase();
+
+    if (query) {
+      filtered = filtered.filter(
+        (p) =>
+          p.name.toLowerCase().includes(query) ||
+          p.description.toLowerCase().includes(query) ||
+          p.brand.toLowerCase().includes(query) ||
+          p.category.toLowerCase().includes(query)
+      );
+    }
+    if (category) {
+      filtered = filtered.filter((p) => p.category.toLowerCase().includes(category));
+    }
+
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '12');
+    const total = filtered.length;
+    const start = (page - 1) * limit;
+    const paginated = filtered.slice(start, start + limit);
+
+    return NextResponse.json({
+      products: paginated,
+      pagination: {
         total,
         page,
         limit,
         totalPages: Math.ceil(total / limit),
-      });
-    }
-
-    return getMockProductsResponse(request);
-  } catch (error) {
-    console.error('Products API error, falling back to mock data:', error);
-    return getMockProductsResponse(request);
+        hasMore: page < Math.ceil(total / limit),
+      },
+    });
   }
 }
 
-function getMockProductsResponse(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const query = (searchParams.get('q') || '').toLowerCase();
-  const category = (searchParams.get('category') || '').toLowerCase();
-  const supplierId = searchParams.get('supplierId') || '';
-  const page = parseInt(searchParams.get('page') || '1');
-  const limit = parseInt(searchParams.get('limit') || '12');
-
-  let filtered = mockProducts;
-
-  if (query) {
-    filtered = filtered.filter(
-      (p) =>
-        p.name.toLowerCase().includes(query) ||
-        p.description.toLowerCase().includes(query) ||
-        p.brand.toLowerCase().includes(query) ||
-        p.category.toLowerCase().includes(query)
-    );
-  }
-
-  if (category) {
-    filtered = filtered.filter((p) => p.category.toLowerCase().includes(category));
-  }
-
-  if (supplierId) {
-    filtered = filtered.filter((p) => p.supplierId === supplierId);
-  }
-
-  const total = filtered.length;
-  const start = (page - 1) * limit;
-  const paginated = filtered.slice(start, start + limit);
-
-  return NextResponse.json({
-    products: paginated,
-    total,
-    page,
-    limit,
-    totalPages: Math.ceil(total / limit),
-  });
-}
-
-function safeJsonParse(value: string | null | undefined, fallback: any) {
-  if (!value) return fallback;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return fallback;
-  }
-}
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-
-    // Simple auth: expecting Authorization header with userId or email
     const authHeader = request.headers.get('authorization');
     const authIdentifier = authHeader ? authHeader.replace('Bearer ', '').trim() : '';
 
-    const isMongoId = (id: string) => /^[0-9a-fA-F]{24}$/.test(id);
+    const body = await request.json();
 
-    // Find or create Business linked to this user/seller
+    if (!body.name || !body.price || !body.category) {
+      return NextResponse.json({ error: 'Missing required product fields: name, price, category' }, { status: 400 });
+    }
+
+    // Find the business/supplier for this user
     let business = null;
-
     try {
       if (authIdentifier && isMongoId(authIdentifier)) {
         business = await prisma.business.findFirst({
-          where: { ownerId: authIdentifier },
+          where: {
+            OR: [
+              { ownerId: authIdentifier },
+              { id: authIdentifier },
+            ],
+          },
         });
       }
 
@@ -229,33 +229,32 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      if (!business) {
-        // Find existing business or create a default one
-        business = await prisma.business.findFirst();
+      if (!business && authIdentifier) {
+        const dbUser = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { id: isMongoId(authIdentifier) ? authIdentifier : undefined },
+              { email: authIdentifier },
+            ],
+          },
+        });
+        if (dbUser) {
+          business = await prisma.business.findFirst({
+            where: {
+              OR: [
+                { ownerId: dbUser.id },
+                { email: dbUser.email },
+              ],
+            },
+          });
+        }
       }
 
       if (!business) {
-        // Auto-create a minimal Business profile
-        const uniqueGst = `27GST${Date.now().toString(36).toUpperCase()}${Math.floor(1000 + Math.random() * 9000)}`;
-        business = await prisma.business.create({
-          data: {
-            ownerId: authIdentifier && isMongoId(authIdentifier) ? authIdentifier : undefined,
-            name: authIdentifier && authIdentifier.includes('@') ? authIdentifier.split('@')[0] : 'ElectroMart Seller',
-            legalName: 'ElectroMart Verified Business',
-            description: 'Electronic components supplier and distributor',
-            businessTypes: JSON.stringify(['distributor', 'supplier']),
-            gst: uniqueGst,
-            email: authIdentifier && authIdentifier.includes('@') ? authIdentifier : 'seller@electromart.com',
-            phone: '+91-9876543210',
-            address: JSON.stringify({ city: 'Bengaluru', state: 'Karnataka', country: 'India' }),
-            badges: JSON.stringify({ verified: true, topRated: false }),
-            stats: JSON.stringify({ responseRate: '99%', avgDeliveryTime: '2-3 days' }),
-          },
-        });
+        business = await prisma.business.findFirst();
       }
     } catch (bizErr) {
-      console.warn('Business lookup/create warning:', bizErr);
-      // Fallback business if DB creation had an issue
+      console.warn('Business lookup warning:', bizErr);
       business = await prisma.business.findFirst();
     }
 
@@ -266,13 +265,13 @@ export async function POST(request: NextRequest) {
     // Check if the seller business account is approved by admin
     const businessBadges = safeJsonParse(business.badges, {});
     const businessStats = safeJsonParse(business.stats, {});
-    const resolvedBusinessStatus =
-      (business as any).status ||
-      businessBadges.status ||
-      businessStats.status ||
-      (businessBadges.verified === true ? 'approved' : 'pending');
+    const isApproved =
+      businessBadges.status === 'approved' ||
+      businessBadges.verified === true ||
+      businessStats.status === 'approved' ||
+      (business as any).status === 'approved';
 
-    if (resolvedBusinessStatus !== 'approved') {
+    if (!isApproved) {
       return NextResponse.json(
         {
           error: 'Your seller account is currently pending admin approval. You will be able to add and list products once your seller account has been approved by the admin.',
@@ -293,19 +292,39 @@ export async function POST(request: NextRequest) {
         productImages = [body.images];
       }
     } else {
-      // Default high quality electronic component image
       productImages = [
         'https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&auto=format&fit=crop&q=60',
       ];
     }
 
-    // Process specs
-    let specsData: string | null = null;
+    // Process specs & dynamic technical attributes
+    let baseSpecs: any = {};
     if (body.specs) {
-      specsData = typeof body.specs === 'string' ? body.specs : JSON.stringify(body.specs);
+      baseSpecs = typeof body.specs === 'string' ? safeJsonParse(body.specs, {}) : body.specs;
     } else if (body.specifications) {
-      specsData = typeof body.specifications === 'string' ? JSON.stringify({ details: body.specifications }) : JSON.stringify(body.specifications);
+      baseSpecs = typeof body.specifications === 'string' ? { details: body.specifications } : body.specifications;
     }
+
+    const dynamicAttrs: any = {
+      ...baseSpecs,
+      status: 'pending',
+      capacitance: body.capacitance || null,
+      voltageRating: body.voltageRating || null,
+      tolerance: body.tolerance || null,
+      dielectric: body.dielectric || null,
+      esr: body.esr || null,
+      rippleCurrent: body.rippleCurrent || null,
+      temperature: body.temperature || null,
+      caseSize: body.caseSize || null,
+      dimensions: body.dimensions || null,
+      mounting: body.mounting || null,
+      termination: body.termination || null,
+      resistance: body.resistance || null,
+      powerRating: body.powerRating || null,
+      tempCoefficient: body.tempCoefficient || null,
+      technology: body.technology || null,
+    };
+    const specsData = JSON.stringify(dynamicAttrs);
 
     const price = parseFloat(body.price) || 0;
     const stock = parseInt(body.stock, 10) || 0;
@@ -341,24 +360,9 @@ export async function POST(request: NextRequest) {
         countryOfOrigin,
         warranty,
         specs: specsData,
-        capacitance: body.capacitance || null,
-        voltageRating: body.voltageRating || null,
-        tolerance: body.tolerance || null,
-        dielectric: body.dielectric || null,
-        esr: body.esr || null,
-        rippleCurrent: body.rippleCurrent || null,
-        temperature: body.temperature || null,
-        caseSize: body.caseSize || null,
-        dimensions: body.dimensions || null,
-        mounting: body.mounting || null,
-        termination: body.termination || null,
-        resistance: body.resistance || null,
-        powerRating: body.powerRating || null,
-        tempCoefficient: body.tempCoefficient || null,
-        technology: body.technology || null,
+        lifecycle: 'pending',
         rohs: body.rohs !== undefined ? Boolean(body.rohs) : true,
         reach: body.reach !== undefined ? Boolean(body.reach) : true,
-        status: 'pending',
         rating: 5.0,
         reviewCount: 0,
         likes: 0,
@@ -367,11 +371,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ product }, { status: 201 });
   } catch (error: any) {
-    console.error('Create product error:', error);
+    console.error('Error creating product listing:', error);
     return NextResponse.json(
-      { error: error?.message || 'Failed to create product' },
+      { error: error?.message || 'Failed to create product listing in MongoDB' },
       { status: 500 }
     );
   }
 }
-
