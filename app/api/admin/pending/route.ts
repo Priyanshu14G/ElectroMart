@@ -81,20 +81,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 2. Fetch pending products
-    const allProducts = await prisma.product.findMany({
+    // 2. Fetch pending products using lifecycle field
+    const pendingProductsList = await prisma.product.findMany({
+      where: { lifecycle: 'pending' },
       include: { supplier: true },
       orderBy: { createdAt: 'desc' },
-    });
-
-    const pendingProductsList = allProducts.filter((p: any) => {
-      const specs = safeJsonParse(p.specs, {});
-      const pStatus = p.status || p.lifecycle || specs.status || 'pending';
-      return (
-        pStatus === 'pending' ||
-        p.lifecycle === 'pending' ||
-        specs.status === 'pending'
-      );
     });
 
     return NextResponse.json({

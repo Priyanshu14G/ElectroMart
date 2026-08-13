@@ -45,9 +45,10 @@ function withTimeout<T>(promise: Promise<T>, ms = 500): Promise<T> {
 
 export async function GET() {
   try {
-    // Get product categories from MongoDB
+    // Get product categories from MongoDB — only approved (active) products
     const products = await withTimeout(
       prisma.product.findMany({
+        where: { lifecycle: 'active' },
         select: { category: true },
       })
     );
