@@ -7,8 +7,15 @@ const registerSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   name: z.string().min(2, 'Name must be at least 2 characters'),
-  role: z.enum(['customer', 'business_owner']).default('customer'),
+  role: z.enum(['customer', 'business_owner', 'admin']).default('customer'),
   phone: z.string().optional(),
+  legalName: z.string().optional(),
+  businessType: z.string().optional(),
+  gstNumber: z.string().optional(),
+  location: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  description: z.string().optional(),
 });
 
 function withTimeout<T>(promise: Promise<T>, ms = 1000): Promise<T> {
@@ -60,6 +67,36 @@ export async function POST(request: NextRequest) {
           },
         })
       );
+
+      // If registering as a seller, auto-create a Business profile with pending status
+      if (validated.role === 'business_owner') {
+        try {
+          const uniqueGst = validated.gstNumber || `PENDING${Date.now().toString(36).toUpperCase()}`;
+          await prisma.business.create({
+            data: {
+              ownerId: user.id,
+              name: validated.name,
+              legalName: validated.legalName || validated.name,
+              description: validated.description || 'Electronic components and hardware supplier awaiting admin verification.',
+              businessTypes: JSON.stringify([validated.businessType || 'supplier']),
+              gst: uniqueGst,
+              email: validated.email,
+              phone: validated.phone || '',
+              address: JSON.stringify({
+                street: validated.location || '',
+                city: validated.city || '',
+                state: validated.state || '',
+                country: 'India',
+              }),
+              badges: JSON.stringify({ verified: false, status: 'pending' }),
+              stats: JSON.stringify({ status: 'pending', responseRate: 95 }),
+              rating: 5.0,
+            },
+          });
+        } catch (bizErr) {
+          console.error('Error creating business profile on registration:', bizErr);
+        }
+      }
 
       return NextResponse.json({ user }, { status: 201 });
     } catch (dbError) {

@@ -57,6 +57,30 @@ export async function GET(request: NextRequest) {
       where.rohs = true;
     }
 
+    // Admin/Seller status filter vs Public filter
+    const statusParam = searchParams.get('status');
+    if (statusParam) {
+      where.status = statusParam;
+    } else if (!supplierId) {
+      // Public marketplace search only shows approved products
+      where.status = 'approved';
+    }
+
+    // Dynamic component attributes filters
+    const dynamicAttrs = [
+      'capacitance', 'voltageRating', 'tolerance', 'dielectric', 'esr',
+      'rippleCurrent', 'temperature', 'caseSize', 'dimensions', 'mounting',
+      'termination', 'resistance', 'powerRating', 'tempCoefficient', 'technology'
+    ];
+    
+    for (const attr of dynamicAttrs) {
+      const val = searchParams.getAll(attr); // e.g., ?capacitance=1uf-10uf&capacitance=10uf-100uf
+      if (val.length > 0) {
+        // If multiple values selected for the same filter, OR them together
+        where[attr] = { in: val };
+      }
+    }
+
     // Build orderBy
     const [sortField, sortDir] = sort.split('_');
     const orderBy: any = {};
@@ -179,3 +203,175 @@ function safeJsonParse(value: string | null | undefined, fallback: any) {
     return fallback;
   }
 }
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+
+    // Simple auth: expecting Authorization header with userId or email
+    const authHeader = request.headers.get('authorization');
+    const authIdentifier = authHeader ? authHeader.replace('Bearer ', '').trim() : '';
+
+    const isMongoId = (id: string) => /^[0-9a-fA-F]{24}$/.test(id);
+
+    // Find or create Business linked to this user/seller
+    let business = null;
+
+    try {
+      if (authIdentifier && isMongoId(authIdentifier)) {
+        business = await prisma.business.findFirst({
+          where: { ownerId: authIdentifier },
+        });
+      }
+
+      if (!business && authIdentifier && authIdentifier.includes('@')) {
+        business = await prisma.business.findFirst({
+          where: { email: authIdentifier },
+        });
+      }
+
+      if (!business) {
+        // Find existing business or create a default one
+        business = await prisma.business.findFirst();
+      }
+
+      if (!business) {
+        // Auto-create a minimal Business profile
+        const uniqueGst = `27GST${Date.now().toString(36).toUpperCase()}${Math.floor(1000 + Math.random() * 9000)}`;
+        business = await prisma.business.create({
+          data: {
+            ownerId: authIdentifier && isMongoId(authIdentifier) ? authIdentifier : undefined,
+            name: authIdentifier && authIdentifier.includes('@') ? authIdentifier.split('@')[0] : 'ElectroMart Seller',
+            legalName: 'ElectroMart Verified Business',
+            description: 'Electronic components supplier and distributor',
+            businessTypes: JSON.stringify(['distributor', 'supplier']),
+            gst: uniqueGst,
+            email: authIdentifier && authIdentifier.includes('@') ? authIdentifier : 'seller@electromart.com',
+            phone: '+91-9876543210',
+            address: JSON.stringify({ city: 'Bengaluru', state: 'Karnataka', country: 'India' }),
+            badges: JSON.stringify({ verified: true, topRated: false }),
+            stats: JSON.stringify({ responseRate: '99%', avgDeliveryTime: '2-3 days' }),
+          },
+        });
+      }
+    } catch (bizErr) {
+      console.warn('Business lookup/create warning:', bizErr);
+      // Fallback business if DB creation had an issue
+      business = await prisma.business.findFirst();
+    }
+
+    if (!business) {
+      return NextResponse.json({ error: 'No supplier or business account found to associate product' }, { status: 400 });
+    }
+
+    // Check if the seller business account is approved by admin
+    const businessBadges = safeJsonParse(business.badges, {});
+    const businessStats = safeJsonParse(business.stats, {});
+    const resolvedBusinessStatus =
+      (business as any).status ||
+      businessBadges.status ||
+      businessStats.status ||
+      (businessBadges.verified === true ? 'approved' : 'pending');
+
+    if (resolvedBusinessStatus !== 'approved') {
+      return NextResponse.json(
+        {
+          error: 'Your seller account is currently pending admin approval. You will be able to add and list products once your seller account has been approved by the admin.',
+        },
+        { status: 403 }
+      );
+    }
+
+    // Process and normalize product images
+    let productImages: string[] = [];
+    if (Array.isArray(body.images) && body.images.length > 0) {
+      productImages = body.images;
+    } else if (typeof body.images === 'string' && body.images.trim()) {
+      try {
+        const parsed = JSON.parse(body.images);
+        productImages = Array.isArray(parsed) ? parsed : [body.images];
+      } catch {
+        productImages = [body.images];
+      }
+    } else {
+      // Default high quality electronic component image
+      productImages = [
+        'https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&auto=format&fit=crop&q=60',
+      ];
+    }
+
+    // Process specs
+    let specsData: string | null = null;
+    if (body.specs) {
+      specsData = typeof body.specs === 'string' ? body.specs : JSON.stringify(body.specs);
+    } else if (body.specifications) {
+      specsData = typeof body.specifications === 'string' ? JSON.stringify({ details: body.specifications }) : JSON.stringify(body.specifications);
+    }
+
+    const price = parseFloat(body.price) || 0;
+    const stock = parseInt(body.stock, 10) || 0;
+    const minOrderQuantity = parseInt(body.minOrderQuantity, 10) || 1;
+    const brand = body.brand || body.manufacturer || 'ElectroMart';
+    const manufacturer = body.manufacturer || body.brand || 'ElectroMart';
+    const manufacturerPartNumber = body.manufacturerPartNumber || `MPN-${Date.now().toString(36).toUpperCase()}`;
+    const supplierPartNumber = body.supplierPartNumber || `SPN-${Date.now().toString(36).toUpperCase()}`;
+    const category = (body.category || 'general').toLowerCase().trim();
+    const leadTime = body.leadTime || '2-4 business days';
+    const packaging = body.packaging || 'Standard Packaging';
+    const countryOfOrigin = body.countryOfOrigin || 'India';
+    const warranty = body.warranty || '1 Year Standard Warranty';
+
+    const product = await prisma.product.create({
+      data: {
+        name: body.name,
+        category,
+        subcategory: body.subcategory || null,
+        brand,
+        manufacturer,
+        manufacturerPartNumber,
+        supplierPartNumber,
+        description: body.description || body.name || '',
+        images: JSON.stringify(productImages),
+        datasheet: body.datasheet || null,
+        supplierId: business.id,
+        stock,
+        minOrderQuantity,
+        price,
+        leadTime,
+        packaging,
+        countryOfOrigin,
+        warranty,
+        specs: specsData,
+        capacitance: body.capacitance || null,
+        voltageRating: body.voltageRating || null,
+        tolerance: body.tolerance || null,
+        dielectric: body.dielectric || null,
+        esr: body.esr || null,
+        rippleCurrent: body.rippleCurrent || null,
+        temperature: body.temperature || null,
+        caseSize: body.caseSize || null,
+        dimensions: body.dimensions || null,
+        mounting: body.mounting || null,
+        termination: body.termination || null,
+        resistance: body.resistance || null,
+        powerRating: body.powerRating || null,
+        tempCoefficient: body.tempCoefficient || null,
+        technology: body.technology || null,
+        rohs: body.rohs !== undefined ? Boolean(body.rohs) : true,
+        reach: body.reach !== undefined ? Boolean(body.reach) : true,
+        status: 'pending',
+        rating: 5.0,
+        reviewCount: 0,
+        likes: 0,
+      },
+    });
+
+    return NextResponse.json({ product }, { status: 201 });
+  } catch (error: any) {
+    console.error('Create product error:', error);
+    return NextResponse.json(
+      { error: error?.message || 'Failed to create product' },
+      { status: 500 }
+    );
+  }
+}
+

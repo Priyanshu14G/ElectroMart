@@ -4,6 +4,8 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { ThemeProvider } from '@/lib/providers/theme-provider'
 import { AuthProvider } from '@/lib/providers/auth-provider'
+import { CartProvider } from '@/lib/providers/cart-provider'
+import { WishlistProvider } from '@/lib/providers/wishlist-provider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -52,7 +54,11 @@ export default function RootLayout({
       <body className={`${inter.className} antialiased`}>
         <ThemeProvider>
           <AuthProvider>
-            {children}
+            <CartProvider>
+              <WishlistProvider>
+                {children}
+              </WishlistProvider>
+            </CartProvider>
           </AuthProvider>
         </ThemeProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
@@ -60,3 +66,5 @@ export default function RootLayout({
     </html>
   )
 }
+
+

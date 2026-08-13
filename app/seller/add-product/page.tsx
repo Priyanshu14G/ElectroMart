@@ -53,6 +53,21 @@ export default function AddProductPage() {
     countryOfOrigin: '',
     warranty: '',
     specifications: '',
+    capacitance: '',
+    voltageRating: '',
+    tolerance: '',
+    dielectric: '',
+    esr: '',
+    rippleCurrent: '',
+    temperature: '',
+    caseSize: '',
+    dimensions: '',
+    mounting: '',
+    termination: '',
+    resistance: '',
+    powerRating: '',
+    tempCoefficient: '',
+    technology: '',
   });
   const [images, setImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -60,13 +75,34 @@ export default function AddProductPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  const [sellerStatus, setSellerStatus] = useState<string>('pending');
+  const [checkingStatus, setCheckingStatus] = useState<boolean>(true);
+
   useEffect(() => {
     const currentUser = authUtils.getCurrentUser() || (typeof window !== 'undefined' && localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!) : null);
     if (!currentUser) {
       router.push('/auth/business-signup');
-    } else {
-      setUser(currentUser);
+      return;
     }
+    setUser(currentUser);
+
+    // Check seller business status
+    const token = currentUser.id || currentUser.email || '';
+    fetch('/api/seller/dashboard', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        const b = data?.business;
+        const isApproved =
+          b?.status === 'approved' ||
+          b?.badges?.verified === true ||
+          b?.badges?.status === 'approved' ||
+          b?.stats?.status === 'approved';
+        setSellerStatus(isApproved ? 'approved' : 'pending');
+      })
+      .catch(() => setSellerStatus('pending'))
+      .finally(() => setCheckingStatus(false));
   }, [router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -78,10 +114,18 @@ export default function AddProductPage() {
     const newFiles = [...images, ...files].slice(0, 5);
     setImages(newFiles);
 
-    const previews = newFiles.map((file) => {
-      return URL.createObjectURL(file);
+    Promise.all(
+      newFiles.map(
+        (file) =>
+          new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (event) => resolve(event.target?.result as string);
+            reader.readAsDataURL(file);
+          })
+      )
+    ).then((previews) => {
+      setImagePreviews(previews);
     });
-    setImagePreviews(previews);
   };
 
   const removeImage = (index: number) => {
@@ -95,6 +139,11 @@ export default function AddProductPage() {
     e.preventDefault();
     setError('');
     setSuccess('');
+
+    if (sellerStatus !== 'approved') {
+      setError('Your seller account is currently pending admin approval. You can only list products once your seller account has been approved by the admin.');
+      return;
+    }
 
     // Validation
     if (
@@ -111,17 +160,35 @@ export default function AddProductPage() {
     setLoading(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const session = authUtils.getSession();
+      const currentUser = authUtils.getCurrentUser();
+      const token = session?.userId || currentUser?.id || currentUser?.email || 'seller';
 
-      // Simulate successful submission
-      setSuccess('Product listing created successfully!');
+      const payload = {
+        ...formData,
+        images: imagePreviews.length > 0 ? imagePreviews : undefined,
+      };
 
-      // Reset form
-      setTimeout(() => {
-        router.push('/seller/products');
-      }, 2000);
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to create product');
+      }
+
+      const data = await res.json();
+      setSuccess('Product submitted for review! It has been sent to the Admin Dashboard for approval and will be listed on the marketplace once approved.');
+      setTimeout(() => router.push('/seller/dashboard'), 2500);
     } catch (err) {
-      setError('Failed to create product listing. Please try again.');
+      console.error(err);
+      setError(err instanceof Error ? err.message : 'Failed to create product listing. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -144,9 +211,9 @@ export default function AddProductPage() {
       <main className="min-h-screen bg-background py-12 px-4">
         <div className="max-w-4xl mx-auto">
           {/* Back Link */}
-          <Link href="/seller/products" className="inline-flex items-center gap-2 text-primary hover:underline mb-8">
+          <Link href="/seller/dashboard" className="inline-flex items-center gap-2 text-primary hover:underline mb-8">
             <ChevronLeft className="h-4 w-4" />
-            Back to Products
+            Back to Dashboard
           </Link>
 
           <motion.div
@@ -161,6 +228,29 @@ export default function AddProductPage() {
               </h1>
               <p className="text-muted-foreground">List your electronic components on ElectroMart India</p>
             </div>
+
+            {/* Seller Status Notice */}
+            {!checkingStatus && sellerStatus !== 'approved' && (
+              <div className="mb-8 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-3.5 text-amber-800 dark:text-amber-300">
+                <div className="p-2 bg-amber-500/20 rounded-lg flex-shrink-0">
+                  <Package className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm">Seller Account Pending Admin Approval</h3>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                    Your seller account is currently under review by our admin team. Once your account is verified and approved, you will be able to submit products for marketplace listing.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Product Approval Notice */}
+            {!checkingStatus && sellerStatus === 'approved' && (
+              <div className="mb-8 p-3.5 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center gap-3 text-xs text-blue-700 dark:text-blue-300">
+                <span className="font-bold uppercase tracking-wider text-[10px] bg-blue-500 text-white px-2 py-0.5 rounded">Process Note</span>
+                <span>All newly added products are sent to the Admin Dashboard for verification before going live on the marketplace.</span>
+              </div>
+            )}
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-8">
@@ -276,7 +366,7 @@ export default function AddProductPage() {
                     <label className="text-sm font-medium block mb-2">Packaging</label>
                     <Input
                       name="packaging"
-                      placeholder="e.g., Blister pack (10 pcs)"
+                      placeholder="e.g., Tape and Reel, Bulk, Blister pack"
                       value={formData.packaging}
                       onChange={handleChange}
                       className="h-11"
@@ -455,11 +545,15 @@ export default function AddProductPage() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || checkingStatus || sellerStatus !== 'approved'}
                   className="flex-1"
                 >
-                  {loading ? 'Creating Listing...' : 'Create Product Listing'}
-                  {!loading && <ArrowRight className="h-4 w-4 ml-2" />}
+                  {loading
+                    ? 'Submitting for Review...'
+                    : sellerStatus !== 'approved'
+                    ? 'Account Pending Approval'
+                    : 'Submit Product for Admin Approval'}
+                  {!loading && sellerStatus === 'approved' && <ArrowRight className="h-4 w-4 ml-2" />}
                 </Button>
               </div>
             </form>

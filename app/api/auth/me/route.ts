@@ -36,7 +36,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ user });
   } catch (error) {
+    const isTimeout = error instanceof Error && error.message === 'DB Timeout';
     console.error('Fetch user API error:', error);
-    return NextResponse.json({ error: 'Database fetch failed' }, { status: 500 });
+    return NextResponse.json(
+      { error: isTimeout ? 'Service temporarily unavailable, please try again' : 'Database fetch failed' },
+      { status: 503 }
+    );
   }
 }

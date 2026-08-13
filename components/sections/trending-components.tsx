@@ -3,19 +3,63 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Star, ShoppingCart, Heart } from 'lucide-react';
+import { Star, ShoppingCart, Heart, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getProducts, type ApiProduct } from '@/lib/api';
 import { mockProducts } from '@/lib/mock-data';
+import { useCart } from '@/lib/providers/cart-provider';
+import { useWishlist } from '@/lib/providers/wishlist-provider';
+import { cn } from '@/lib/utils';
 
 export function TrendingComponents() {
   const [trending, setTrending] = useState<ApiProduct[]>(mockProducts.slice(0, 6) as any);
+  const { addToCart } = useCart();
+  const { toggleWishlist, isInWishlist } = useWishlist();
+  const [addedIds, setAddedIds] = useState<{ [key: string]: boolean }>({});
 
   useEffect(() => {
     getProducts({ limit: 6, sort: 'rating_desc' })
       .then((res) => setTrending(res.products))
       .catch(console.error);
   }, []);
+
+  const handleQuickAdd = (e: React.MouseEvent, product: ApiProduct) => {
+    e.preventDefault();
+    e.stopPropagation();
+    addToCart({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      quantity: product.minOrderQuantity || 1,
+      images: Array.isArray(product.images) ? product.images : [product.images as any],
+      brand: product.brand,
+      category: product.category,
+      minOrderQuantity: product.minOrderQuantity || 1,
+      stock: product.stock,
+      leadTime: product.leadTime,
+    });
+
+    setAddedIds((prev) => ({ ...prev, [product.id]: true }));
+    setTimeout(() => {
+      setAddedIds((prev) => ({ ...prev, [product.id]: false }));
+    }, 1800);
+  };
+
+  const handleWishlistToggle = (e: React.MouseEvent, product: ApiProduct) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleWishlist({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      images: Array.isArray(product.images) ? product.images : [product.images as any],
+      brand: product.brand,
+      category: product.category,
+      minOrderQuantity: product.minOrderQuantity || 1,
+      stock: product.stock,
+      leadTime: product.leadTime,
+    });
+  };
 
   return (
     <section className="py-16 sm:py-24 bg-muted/50">
@@ -52,10 +96,16 @@ export function TrendingComponents() {
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                     />
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
-                    <button className="absolute top-3 right-3 p-2 bg-white/90 hover:bg-white rounded-full transition-colors shadow-sm">
-                      <Heart className="h-4 w-4 text-red-500" />
+                    <button
+                      type="button"
+                      onClick={(e) => handleWishlistToggle(e, product)}
+                      className="absolute top-3 right-3 p-2 bg-white/90 hover:bg-white rounded-full transition-colors shadow-sm"
+                      title={isInWishlist(product.id) ? 'Remove from Wishlist' : 'Save to Wishlist'}
+                    >
+                      <Heart className={cn('h-4 w-4 transition', isInWishlist(product.id) ? 'fill-red-500 text-red-500' : 'text-gray-400')} />
                     </button>
                   </div>
+
 
                   {/* Content */}
                   <div className="p-4 flex-1 flex flex-col">
@@ -95,8 +145,22 @@ export function TrendingComponents() {
                       </div>
                     </div>
 
-                    <Button size="sm" className="w-full gap-2 mt-auto">
-                      <ShoppingCart className="h-4 w-4" /> Quote
+                    <Button
+                      size="sm"
+                      className={`w-full gap-2 mt-auto transition ${
+                        addedIds[product.id] ? 'bg-green-600 hover:bg-green-700 text-white' : ''
+                      }`}
+                      onClick={(e) => handleQuickAdd(e, product)}
+                    >
+                      {addedIds[product.id] ? (
+                        <>
+                          <Check className="h-4 w-4" /> Added to Cart
+                        </>
+                      ) : (
+                        <>
+                          <ShoppingCart className="h-4 w-4" /> Add to Cart
+                        </>
+                      )}
                     </Button>
                   </div>
                 </div>

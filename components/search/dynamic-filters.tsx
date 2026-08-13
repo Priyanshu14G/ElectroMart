@@ -1,16 +1,16 @@
 'use client';
 
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { ChevronDown, X } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronDown, SlidersHorizontal, X, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { getFilterOptions } from '@/lib/utils/search';
+import { getFiltersForCategory, type FilterCategory } from '@/lib/utils/search-filters';
 
 export interface DynamicFiltersProps {
   category?: string;
-  availableFilters: string[];
+  availableFilters?: string[];
   onFiltersChange: (filters: Record<string, string[]>) => void;
   priceRange?: [number, number];
   onPriceChange?: (range: [number, number]) => void;
@@ -22,28 +22,37 @@ interface FilterState {
 
 export function DynamicFilters({
   category,
-  availableFilters,
   onFiltersChange,
-  priceRange = [0, 10000],
+  priceRange = [0, 100000],
   onPriceChange,
 }: DynamicFiltersProps) {
   const [filters, setFilters] = useState<FilterState>({});
-  const [expandedFilters, setExpandedFilters] = useState<Set<string>>(new Set());
+  const [expandedFilters, setExpandedFilters] = useState<Set<string>>(
+    new Set(['capacitance', 'resistance', 'manufacturer', 'mounting', 'package', 'voltageRating'])
+  );
   const [priceMin, setPriceMin] = useState(priceRange[0]);
   const [priceMax, setPriceMax] = useState(priceRange[1]);
+  const [searchInFilter, setSearchInFilter] = useState<Record<string, string>>({});
 
-  const toggleFilter = (filterType: string, value: string) => {
+  // Get filter config for current category
+  const filterConfig = useMemo(() => {
+    return getFiltersForCategory(category || 'general');
+  }, [category]);
+
+  const filterCategories = filterConfig.filters;
+
+  const toggleFilter = (filterId: string, value: string) => {
     setFilters((prev) => {
-      const current = prev[filterType] || [];
+      const current = prev[filterId] || [];
       const updated = current.includes(value)
         ? current.filter((v) => v !== value)
         : [...current, value];
 
       const newFilters = { ...prev };
       if (updated.length === 0) {
-        delete newFilters[filterType];
+        delete newFilters[filterId];
       } else {
-        newFilters[filterType] = updated;
+        newFilters[filterId] = updated;
       }
 
       onFiltersChange(newFilters);
@@ -51,17 +60,19 @@ export function DynamicFilters({
     });
   };
 
-  const toggleExpandFilter = (filterType: string) => {
-    const newExpanded = new Set(expandedFilters);
-    if (newExpanded.has(filterType)) {
-      newExpanded.delete(filterType);
-    } else {
-      newExpanded.add(filterType);
-    }
-    setExpandedFilters(newExpanded);
+  const toggleExpandFilter = (filterId: string) => {
+    setExpandedFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(filterId)) {
+        next.delete(filterId);
+      } else {
+        next.add(filterId);
+      }
+      return next;
+    });
   };
 
-  const handlePriceChange = () => {
+  const handlePriceApply = () => {
     if (priceMin <= priceMax) {
       onPriceChange?.([priceMin, priceMax]);
     }
@@ -69,223 +80,238 @@ export function DynamicFilters({
 
   const clearAllFilters = () => {
     setFilters({});
+    setPriceMin(priceRange[0]);
+    setPriceMax(priceRange[1]);
+    setSearchInFilter({});
     onFiltersChange({});
+    onPriceChange?.(priceRange);
   };
 
-  const hasActiveFilters = Object.keys(filters).length > 0;
+  const totalActiveFilters = Object.values(filters).reduce((sum, arr) => sum + arr.length, 0);
+
+  // Get filtered options for a filter section based on search input
+  const getFilteredOptions = (fc: FilterCategory) => {
+    const search = (searchInFilter[fc.id] || '').toLowerCase();
+    const opts = fc.options || [];
+    if (!search) return opts;
+    return opts.filter((o) => o.label.toLowerCase().includes(search));
+  };
 
   return (
     <motion.div
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
-      className="bg-card rounded-lg border border-border p-4 space-y-6 sticky top-24"
+      className="bg-card rounded-xl border border-border overflow-hidden sticky top-24"
     >
-      <div className="space-y-2">
-        <h3 className="font-semibold text-lg">Filters</h3>
-        {hasActiveFilters && (
-          <Button
-            variant="outline"
-            size="sm"
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-primary/10 to-transparent border-b border-border">
+        <div className="flex items-center gap-2">
+          <SlidersHorizontal className="h-4 w-4 text-primary" />
+          <span className="font-semibold text-sm">Filters</span>
+          {totalActiveFilters > 0 && (
+            <span className="bg-primary text-primary-foreground text-xs rounded-full px-2 py-0.5 font-medium">
+              {totalActiveFilters}
+            </span>
+          )}
+        </div>
+        {totalActiveFilters > 0 && (
+          <button
             onClick={clearAllFilters}
-            className="w-full text-xs"
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
           >
-            Clear All
-          </Button>
+            <RotateCcw className="h-3 w-3" />
+            Reset
+          </button>
         )}
       </div>
 
-      {/* Price Range Filter */}
-      <motion.div
-        className="space-y-3"
-        layout
-      >
-        <button
-          onClick={() => toggleExpandFilter('price')}
-          className="flex items-center justify-between w-full"
-        >
-          <span className="font-medium text-sm">Price Range</span>
-          <ChevronDown
-            className={cn(
-              'h-4 w-4 transition-transform',
-              expandedFilters.has('price') ? 'rotate-180' : ''
+      <div className="max-h-[calc(100vh-10rem)] overflow-y-auto">
+        {/* Active Filters Pills */}
+        {totalActiveFilters > 0 && (
+          <div className="px-4 py-3 border-b border-border/50 flex flex-wrap gap-1.5">
+            {Object.entries(filters).map(([key, values]) =>
+              values.map((val) => {
+                const fc = filterCategories.find((f) => f.id === key);
+                const opt = fc?.options?.find((o) => o.value === val);
+                return (
+                  <button
+                    key={`${key}-${val}`}
+                    onClick={() => toggleFilter(key, val)}
+                    className="flex items-center gap-1 bg-primary/10 text-primary text-xs rounded-full px-2 py-0.5 hover:bg-destructive/10 hover:text-destructive transition-colors"
+                  >
+                    {opt?.label || val}
+                    <X className="h-3 w-3" />
+                  </button>
+                );
+              })
             )}
-          />
-        </button>
-
-        {expandedFilters.has('price') && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="space-y-3"
-          >
-            <div className="space-y-2">
-              <label className="text-xs text-muted-foreground">Min Price: ₹{priceMin}</label>
-              <Input
-                type="number"
-                value={priceMin}
-                onChange={(e) => setPriceMin(parseInt(e.target.value) || 0)}
-                onBlur={handlePriceChange}
-                placeholder="Min"
-                className="h-8"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs text-muted-foreground">Max Price: ₹{priceMax}</label>
-              <Input
-                type="number"
-                value={priceMax}
-                onChange={(e) => setPriceMax(parseInt(e.target.value) || 10000)}
-                onBlur={handlePriceChange}
-                placeholder="Max"
-                className="h-8"
-              />
-            </div>
-          </motion.div>
+          </div>
         )}
-      </motion.div>
 
-      {/* Dynamic Filters */}
-      {availableFilters.map((filterType) => {
-        const options = getFilterOptions(filterType, category);
-        const isExpanded = expandedFilters.has(filterType);
-
-        return (
-          <motion.div
-            key={filterType}
-            className="space-y-3"
-            layout
+        {/* Price Range */}
+        <div className="border-b border-border/50">
+          <button
+            onClick={() => toggleExpandFilter('__price')}
+            className="flex items-center justify-between w-full px-4 py-3 hover:bg-muted/30 transition-colors"
           >
-            <button
-              onClick={() => toggleExpandFilter(filterType)}
-              className="flex items-center justify-between w-full"
-            >
-              <span className="font-medium text-sm capitalize">
-                {filterType.replace(/_/g, ' ')}
-              </span>
-              <ChevronDown
-                className={cn(
-                  'h-4 w-4 transition-transform',
-                  isExpanded ? 'rotate-180' : ''
-                )}
-              />
-            </button>
-
-            {isExpanded && (
+            <span className="font-medium text-sm">Price Range (₹)</span>
+            <ChevronDown
+              className={cn(
+                'h-4 w-4 text-muted-foreground transition-transform',
+                expandedFilters.has('__price') ? 'rotate-180' : ''
+              )}
+            />
+          </button>
+          <AnimatePresence>
+            {expandedFilters.has('__price') && (
               <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="space-y-2"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
               >
-                {options.length > 0 ? (
-                  options.slice(0, 8).map((option) => {
-                    const isSelected = filters[filterType]?.includes(option);
-                    return (
-                      <label
-                        key={option}
-                        className="flex items-center gap-2 cursor-pointer group"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleFilter(filterType, option)}
-                          className="w-4 h-4 rounded accent-primary"
-                        />
-                        <span className="text-sm text-foreground group-hover:text-primary transition-colors">
-                          {option}
-                        </span>
-                      </label>
-                    );
-                  })
-                ) : (
-                  <p className="text-xs text-muted-foreground">No options available</p>
-                )}
+                <div className="px-4 pb-4 space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Min (₹)</label>
+                      <Input
+                        type="number"
+                        value={priceMin}
+                        onChange={(e) => setPriceMin(parseInt(e.target.value) || 0)}
+                        className="h-8 text-sm"
+                        min={0}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Max (₹)</label>
+                      <Input
+                        type="number"
+                        value={priceMax}
+                        onChange={(e) => setPriceMax(parseInt(e.target.value) || 100000)}
+                        className="h-8 text-sm"
+                        min={0}
+                      />
+                    </div>
+                  </div>
+                  <Button size="sm" className="w-full h-8 text-xs" onClick={handlePriceApply}>
+                    Apply Price Filter
+                  </Button>
+                </div>
               </motion.div>
             )}
-          </motion.div>
-        );
-      })}
+          </AnimatePresence>
+        </div>
 
-      {/* Stock Status */}
-      <motion.div className="space-y-3" layout>
-        <button
-          onClick={() => toggleExpandFilter('stock')}
-          className="flex items-center justify-between w-full"
-        >
-          <span className="font-medium text-sm">Stock Status</span>
-          <ChevronDown
-            className={cn(
-              'h-4 w-4 transition-transform',
-              expandedFilters.has('stock') ? 'rotate-180' : ''
-            )}
-          />
-        </button>
+        {/* Dynamic Filter Sections */}
+        {filterCategories.map((fc) => {
+          const isExpanded = expandedFilters.has(fc.id);
+          const selectedCount = (filters[fc.id] || []).length;
+          const visibleOptions = getFilteredOptions(fc);
 
-        {expandedFilters.has('stock') && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="space-y-2"
-          >
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                className="w-4 h-4 rounded accent-primary"
-              />
-              <span className="text-sm">In Stock</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                className="w-4 h-4 rounded accent-primary"
-              />
-              <span className="text-sm">Pre-order Available</span>
-            </label>
-          </motion.div>
-        )}
-      </motion.div>
+          return (
+            <div key={fc.id} className="border-b border-border/50 last:border-0">
+              <button
+                onClick={() => toggleExpandFilter(fc.id)}
+                className="flex items-center justify-between w-full px-4 py-3 hover:bg-muted/30 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-sm">{fc.label}</span>
+                  {selectedCount > 0 && (
+                    <span className="bg-primary text-primary-foreground text-xs rounded-full px-1.5 py-0 leading-5 font-medium min-w-[1.25rem] text-center">
+                      {selectedCount}
+                    </span>
+                  )}
+                </div>
+                <ChevronDown
+                  className={cn(
+                    'h-4 w-4 text-muted-foreground transition-transform flex-shrink-0',
+                    isExpanded ? 'rotate-180' : ''
+                  )}
+                />
+              </button>
 
-      {/* Supplier Filter */}
-      <motion.div className="space-y-3" layout>
-        <button
-          onClick={() => toggleExpandFilter('supplier')}
-          className="flex items-center justify-between w-full"
-        >
-          <span className="font-medium text-sm">Supplier</span>
-          <ChevronDown
-            className={cn(
-              'h-4 w-4 transition-transform',
-              expandedFilters.has('supplier') ? 'rotate-180' : ''
-            )}
-          />
-        </button>
+              <AnimatePresence>
+                {isExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-4 pb-4 space-y-2">
+                      {/* Search within filter options if > 6 options */}
+                      {(fc.options?.length || 0) > 6 && (
+                        <Input
+                          value={searchInFilter[fc.id] || ''}
+                          onChange={(e) =>
+                            setSearchInFilter((prev) => ({ ...prev, [fc.id]: e.target.value }))
+                          }
+                          placeholder={`Search ${fc.label.toLowerCase()}…`}
+                          className="h-7 text-xs mb-2"
+                        />
+                      )}
 
-        {expandedFilters.has('supplier') && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="space-y-2"
-          >
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                className="w-4 h-4 rounded accent-primary"
-              />
-              <span className="text-sm">Verified Only</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                className="w-4 h-4 rounded accent-primary"
-              />
-              <span className="text-sm">GST Verified</span>
-            </label>
-          </motion.div>
-        )}
-      </motion.div>
+                      {visibleOptions.length > 0 ? (
+                        visibleOptions.map((option) => {
+                          const isSelected = (filters[fc.id] || []).includes(option.value);
+                          return (
+                            <label
+                              key={option.value}
+                              className="flex items-center gap-2 cursor-pointer group"
+                            >
+                              <div
+                                className={cn(
+                                  'w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all',
+                                  isSelected
+                                    ? 'bg-primary border-primary'
+                                    : 'border-muted-foreground/40 group-hover:border-primary/50'
+                                )}
+                                onClick={() => toggleFilter(fc.id, option.value)}
+                              >
+                                {isSelected && (
+                                  <svg
+                                    className="w-2.5 h-2.5 text-primary-foreground"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={3}
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </div>
+                              <span
+                                className={cn(
+                                  'text-xs leading-tight transition-colors',
+                                  isSelected
+                                    ? 'text-primary font-medium'
+                                    : 'text-foreground/80 group-hover:text-foreground'
+                                )}
+                                onClick={() => toggleFilter(fc.id, option.value)}
+                              >
+                                {option.label}
+                              </span>
+                              {option.count !== undefined && (
+                                <span className="ml-auto text-xs text-muted-foreground/50 flex-shrink-0">
+                                  {option.count.toLocaleString()}
+                                </span>
+                              )}
+                            </label>
+                          );
+                        })
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">No matching options</p>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          );
+        })}
+      </div>
     </motion.div>
   );
 }

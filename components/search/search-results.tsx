@@ -13,11 +13,15 @@ import {
   ChevronDown,
   Search as SearchIcon,
   Loader2,
+  ShoppingCart,
+  Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DynamicFilters } from '@/components/search/dynamic-filters';
 import { getProducts, type ApiProduct } from '@/lib/api';
+import { useCart } from '@/lib/providers/cart-provider';
+import { useWishlist } from '@/lib/providers/wishlist-provider';
 import { cn } from '@/lib/utils';
 
 interface SearchResultsProps {
@@ -26,9 +30,13 @@ interface SearchResultsProps {
 }
 
 export function SearchResults({ query, category }: SearchResultsProps) {
+  const { addToCart } = useCart();
+  const { toggleWishlist, isInWishlist } = useWishlist();
+  const [addedIds, setAddedIds] = useState<{ [key: string]: boolean }>({});
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState('relevance');
   const [filters, setFilters] = useState<Record<string, string[]>>({});
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 100000]);
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [searchInput, setSearchInput] = useState(query);
   const [currentPage, setCurrentPage] = useState(1);
@@ -40,12 +48,22 @@ export function SearchResults({ query, category }: SearchResultsProps) {
 
   useEffect(() => {
     setLoading(true);
+
+    // Extract non-standard filters from the filters state
+    const dynamicFilters = { ...filters };
+    delete dynamicFilters['stock'];
+    delete dynamicFilters['__price'];
+
     getProducts({
       q: searchInput,
       category,
       page: currentPage,
       limit: itemsPerPage,
       sort: sortBy === 'price_low_to_high' ? 'price_asc' : sortBy === 'price_high_to_low' ? 'price_desc' : sortBy === 'rating' ? 'rating_desc' : 'createdAt_desc',
+      minPrice: priceRange[0] > 0 ? priceRange[0] : undefined,
+      maxPrice: priceRange[1] < 100000 ? priceRange[1] : undefined,
+      inStock: filters['stock']?.includes('in-stock') || undefined,
+      ...dynamicFilters,
     })
       .then((res) => {
         setProducts(res.products);
@@ -54,10 +72,20 @@ export function SearchResults({ query, category }: SearchResultsProps) {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [searchInput, category, currentPage, sortBy]);
+  }, [searchInput, category, currentPage, sortBy, priceRange, filters]);
 
   const handleSearch = (value: string) => {
     setSearchInput(value);
+    setCurrentPage(1);
+  };
+
+  const handleFiltersChange = (newFilters: Record<string, string[]>) => {
+    setFilters(newFilters);
+    setCurrentPage(1);
+  };
+
+  const handlePriceChange = (range: [number, number]) => {
+    setPriceRange(range);
     setCurrentPage(1);
   };
 
@@ -88,11 +116,12 @@ export function SearchResults({ query, category }: SearchResultsProps) {
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Filters Sidebar */}
-          <div className="lg:w-64 flex-shrink-0">
+          <div className="lg:w-72 flex-shrink-0">
             <DynamicFilters
-              category={category}
-              availableFilters={[]}
-              onFiltersChange={setFilters}
+              category={category || 'general'}
+              onFiltersChange={handleFiltersChange}
+              priceRange={priceRange}
+              onPriceChange={handlePriceChange}
             />
           </div>
 
@@ -216,7 +245,29 @@ export function SearchResults({ query, category }: SearchResultsProps) {
                         ) : (
                           <span className="text-3xl">📦</span>
                         )}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            toggleWishlist({
+                              id: product.id,
+                              name: product.name,
+                              price: product.price,
+                              images: Array.isArray(product.images) ? product.images : [product.images as any],
+                              brand: product.brand,
+                              category: product.category,
+                              minOrderQuantity: product.minOrderQuantity || 1,
+                              stock: product.stock,
+                            });
+                          }}
+                          className="absolute top-2.5 right-2.5 p-1.5 bg-background/90 hover:bg-background rounded-full transition shadow-sm backdrop-blur-sm z-10"
+                          title={isInWishlist(product.id) ? 'Remove from Wishlist' : 'Add to Wishlist'}
+                        >
+                          <Heart className={cn('h-3.5 w-3.5 transition', isInWishlist(product.id) ? 'fill-red-500 text-red-500' : 'text-muted-foreground')} />
+                        </button>
                       </div>
+
 
                       {/* Product Info */}
                       <div className={cn('p-4 flex-1 flex flex-col justify-between')}>
@@ -290,11 +341,45 @@ export function SearchResults({ query, category }: SearchResultsProps) {
 
                         {/* Actions */}
                         <div className="flex gap-2 mt-3">
-                          <Link href={`/product/${product.id}`} className="w-full">
-                            <Button size="sm" className="w-full h-8">
-                              View Details
+                          <Link href={`/product/${product.id}`} className="flex-1">
+                            <Button size="sm" variant="outline" className="w-full h-8 text-xs">
+                              View
                             </Button>
                           </Link>
+                          <Button
+                            size="sm"
+                            className={`flex-1 h-8 text-xs gap-1.5 transition ${
+                              addedIds[product.id] ? 'bg-green-600 hover:bg-green-700 text-white' : ''
+                            }`}
+                            onClick={() => {
+                              addToCart({
+                                id: product.id,
+                                name: product.name,
+                                price: product.price,
+                                quantity: product.minOrderQuantity || 1,
+                                images: Array.isArray(product.images) ? product.images : [product.images as any],
+                                brand: product.brand,
+                                supplierName: product.supplier?.name || 'ElectroMart Supplier',
+                                minOrderQuantity: product.minOrderQuantity || 1,
+                                stock: product.stock,
+                                category: product.category,
+                              });
+                              setAddedIds((prev) => ({ ...prev, [product.id]: true }));
+                              setTimeout(() => {
+                                setAddedIds((prev) => ({ ...prev, [product.id]: false }));
+                              }, 1800);
+                            }}
+                          >
+                            {addedIds[product.id] ? (
+                              <>
+                                <Check className="h-3.5 w-3.5" /> Added
+                              </>
+                            ) : (
+                              <>
+                                <ShoppingCart className="h-3.5 w-3.5" /> Add
+                              </>
+                            )}
+                          </Button>
                         </div>
                       </div>
                     </motion.div>

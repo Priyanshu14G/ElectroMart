@@ -16,7 +16,10 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const statusParam = searchParams.get('status');
+    const where: any = {
+      status: statusParam || 'approved',
+    };
 
     // Filter by verified (badges.verified = true)
     // Since badges is a JSON string, we filter in JS after fetching

@@ -569,12 +569,79 @@ async function main() {
   });
 
   console.log('✅ RFQs seeded');
+
+  // ── Orders ───────────────────────────────────────────────────────────────────
+  await prisma.order.upsert({
+    where: { id: '64f1d1000000000000000001' },
+    update: {},
+    create: {
+      id: '64f1d1000000000000000001',
+      customerId: '64f1a0000000000000000002',
+      supplierId: '64f1b0000000000000000001',
+      totalPrice: 4900,
+      status: 'processing',
+      deliveryAddress: JSON.stringify({
+        name: 'Rajesh Kumar',
+        street: '12 Industrial Area Phase 2',
+        city: 'Bengaluru',
+        state: 'Karnataka',
+        pincode: '560066',
+      }),
+      trackingNumber: 'DELHIVERY-992381',
+      items: {
+        create: [
+          {
+            id: '64f1d2000000000000000001',
+            productId: '64f1c0000000000000000001',
+            quantity: 20,
+            unitPrice: 245,
+            totalPrice: 4900,
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.order.upsert({
+    where: { id: '64f1d1000000000000000002' },
+    update: {},
+    create: {
+      id: '64f1d1000000000000000002',
+      customerId: '64f1a0000000000000000002',
+      supplierId: '64f1b0000000000000000001',
+      totalPrice: 8500,
+      status: 'delivered',
+      deliveryAddress: JSON.stringify({
+        name: 'Priya Embedded Robotics',
+        street: '45 Tech Hub Road',
+        city: 'Pune',
+        state: 'Maharashtra',
+        pincode: '411014',
+      }),
+      trackingNumber: 'BLUEDART-882719',
+      deliveredAt: new Date(),
+      items: {
+        create: [
+          {
+            id: '64f1d2000000000000000002',
+            productId: '64f1c0000000000000000009',
+            quantity: 10,
+            unitPrice: 850,
+            totalPrice: 8500,
+          },
+        ],
+      },
+    },
+  });
+
+  console.log('✅ Orders seeded');
   console.log('\n🎉 MongoDB database seeded successfully!');
   console.log('\n📋 Demo Credentials:');
   console.log('   Admin:    admin@electromart.com / admin123');
   console.log('   Customer: customer@example.com  / customer123');
   console.log('   Business: business@electromart.com / business123');
 }
+
 
 main()
   .catch((e) => {

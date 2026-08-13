@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Star,
   Heart,
@@ -16,23 +16,33 @@ import {
   FileText,
   ShoppingCart,
   Loader2,
+  Check,
+  ArrowRight,
 } from 'lucide-react';
 import { Header } from '@/components/layouts/header';
 import { Footer } from '@/components/layouts/footer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { getProduct, type ApiProduct } from '@/lib/api';
+import { useCart } from '@/lib/providers/cart-provider';
+import { useWishlist } from '@/lib/providers/wishlist-provider';
 import { cn } from '@/lib/utils';
 
 export default function ProductPage() {
+  const router = useRouter();
   const params = useParams<{ id: string }>();
   const id = params?.id || '';
+  const { addToCart } = useCart();
+  const { toggleWishlist, isInWishlist } = useWishlist();
   
   const [product, setProduct] = useState<ApiProduct | null>(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [selectedTab, setSelectedTab] = useState<'details' | 'reviews' | 'specifications'>('details');
-  const [wishlist, setWishlist] = useState(false);
+  const [addedAnimation, setAddedAnimation] = useState(false);
+  const [wishlistToast, setWishlistToast] = useState<string | null>(null);
+
+
 
   useEffect(() => {
     if (!id) return;
@@ -206,51 +216,154 @@ export default function ProductPage() {
 
                 {/* Quantity & Actions */}
                 <div className="space-y-3">
-                  <div className="flex gap-3">
-                    <div className="flex border border-border rounded-lg w-fit">
+                  <div className="flex items-center gap-3">
+                    <div className="flex border border-border rounded-lg bg-background">
                       <button
-                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                        className="px-3 py-2 hover:bg-muted transition"
+                        onClick={() => setQuantity(Math.max(product.minOrderQuantity || 1, quantity - 1))}
+                        className="px-3 py-2 hover:bg-muted transition text-muted-foreground hover:text-foreground"
+                        title="Decrease"
                       >
                         −
                       </button>
                       <input
                         type="number"
                         value={quantity}
-                        onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                        className="w-16 text-center border-l border-r border-border bg-background"
-                        min="1"
+                        onChange={(e) => setQuantity(Math.max(product.minOrderQuantity || 1, parseInt(e.target.value) || 1))}
+                        className="w-16 text-center border-l border-r border-border bg-background font-semibold"
+                        min={product.minOrderQuantity || 1}
                       />
                       <button
                         onClick={() => setQuantity(quantity + 1)}
-                        className="px-3 py-2 hover:bg-muted transition"
+                        className="px-3 py-2 hover:bg-muted transition text-muted-foreground hover:text-foreground"
+                        title="Increase"
                       >
                         +
                       </button>
                     </div>
+                    <span className="text-xs text-muted-foreground">
+                      MOQ: {product.minOrderQuantity || 1} {product.minOrderQuantity && product.minOrderQuantity > 1 ? 'units minimum' : 'unit'}
+                    </span>
                   </div>
 
                   <div className="flex gap-3">
-                    <Button className="flex-1 h-10 text-base">
-                      <ShoppingCart className="h-4 w-4 mr-2" />
-                      Add to Cart
+                    <Button
+                      className={`flex-1 h-11 text-base font-semibold gap-2 transition-all ${
+                        addedAnimation ? 'bg-green-600 hover:bg-green-700 text-white' : ''
+                      }`}
+                      onClick={() => {
+                        addToCart({
+                          id: product.id,
+                          name: product.name,
+                          price: product.price,
+                          quantity,
+                          images: Array.isArray(product.images) ? product.images : [product.images as any],
+                          brand: product.brand,
+                          manufacturer: product.manufacturer,
+                          supplierName: product.supplier?.name || 'ElectroMart Supplier',
+                          minOrderQuantity: product.minOrderQuantity || 1,
+                          stock: product.stock,
+                          category: product.category,
+                          leadTime: product.leadTime,
+                          packaging: product.packaging,
+                        });
+                        setAddedAnimation(true);
+                        setTimeout(() => setAddedAnimation(false), 2000);
+                      }}
+                    >
+                      {addedAnimation ? (
+                        <>
+                          <Check className="h-5 w-5 animate-in zoom-in" />
+                          Added to Cart!
+                        </>
+                      ) : (
+                        <>
+                          <ShoppingCart className="h-5 w-5" />
+                          Add to Cart
+                        </>
+                      )}
                     </Button>
                     <Button
                       variant="outline"
-                      className="w-12 h-10"
-                      onClick={() => setWishlist(!wishlist)}
+                      className="w-12 h-11 flex-shrink-0 transition"
+                      onClick={() => {
+                        const added = toggleWishlist({
+                          id: product.id,
+                          name: product.name,
+                          price: product.price,
+                          images: Array.isArray(product.images) ? product.images : [product.images as any],
+                          brand: product.brand,
+                          category: product.category,
+                          minOrderQuantity: product.minOrderQuantity || 1,
+                          stock: product.stock,
+                          leadTime: product.leadTime,
+                        });
+                        setWishlistToast(added ? 'Saved to your Wishlist' : 'Removed from your Wishlist');
+                        setTimeout(() => setWishlistToast(null), 2500);
+                      }}
+                      title={isInWishlist(product.id) ? 'Remove from Wishlist' : 'Add to Wishlist'}
                     >
-                      <Heart className={cn('h-5 w-5', wishlist && 'fill-red-500 text-red-500')} />
+                      <Heart className={cn('h-5 w-5 transition', isInWishlist(product.id) ? 'fill-red-500 text-red-500' : 'text-muted-foreground')} />
                     </Button>
                   </div>
 
-                  <Button variant="outline" className="w-full h-10">
-                    <MessageCircle className="h-4 w-4 mr-2" />
-                    Message Supplier
+                  {wishlistToast && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center justify-between text-xs text-red-700 dark:text-red-300"
+                    >
+                      <span className="flex items-center gap-1.5 font-medium">
+                        <Heart className="h-3.5 w-3.5 fill-red-500 text-red-500" />
+                        {wishlistToast}
+                      </span>
+                      <Link href="/wishlist" className="font-semibold underline flex items-center gap-1">
+                        View Wishlist <ArrowRight className="h-3.5 w-3.5" />
+                      </Link>
+                    </motion.div>
+                  )}
+
+
+                  {addedAnimation && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg flex items-center justify-between text-xs text-green-700 dark:text-green-300"
+                    >
+                      <span>Item added to your cart successfully.</span>
+                      <Link href="/cart" className="font-semibold underline flex items-center gap-1">
+                        View Cart <ArrowRight className="h-3.5 w-3.5" />
+                      </Link>
+                    </motion.div>
+                  )}
+
+                  <Button
+                    variant="outline"
+                    className="w-full h-11 font-semibold"
+                    onClick={() => {
+                      addToCart({
+                        id: product.id,
+                        name: product.name,
+                        price: product.price,
+                        quantity,
+                        images: Array.isArray(product.images) ? product.images : [product.images as any],
+                        brand: product.brand,
+                        manufacturer: product.manufacturer,
+                        supplierName: product.supplier?.name || 'ElectroMart Supplier',
+                        minOrderQuantity: product.minOrderQuantity || 1,
+                        stock: product.stock,
+                        category: product.category,
+                        leadTime: product.leadTime,
+                        packaging: product.packaging,
+                      });
+                      router.push('/cart');
+                    }}
+                  >
+                    Buy Now
                   </Button>
 
-                  <Button variant="outline" className="w-full h-10">
-                    Add to RFQ
+                  <Button variant="ghost" className="w-full h-10 text-muted-foreground hover:text-foreground">
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    Message Supplier for Custom Quotation
                   </Button>
                 </div>
               </motion.div>
@@ -311,24 +424,98 @@ export default function ProductPage() {
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="space-y-3"
+                  className="space-y-4"
                 >
-                  <div className="p-4 bg-card border border-border rounded-lg space-y-3">
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-2">Manufacturer Part Number</p>
-                      <p className="font-mono text-lg">{product.manufacturerPartNumber}</p>
+                  {/* Part Numbers */}
+                  <div className="bg-card border border-border rounded-lg overflow-hidden">
+                    <div className="px-4 py-2 bg-muted/50 border-b border-border">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Part Identification</p>
                     </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-2">Supplier Part Number</p>
-                      <p className="font-mono text-lg">{product.supplierPartNumber}</p>
+                    <div className="divide-y divide-border/50">
+                      {[
+                        { label: 'Manufacturer Part Number (MPN)', value: product.manufacturerPartNumber },
+                        { label: 'Supplier Part Number (SPN)', value: product.supplierPartNumber },
+                        { label: 'Category', value: product.category },
+                        { label: 'Manufacturer / Brand', value: product.manufacturer || product.brand },
+                        { label: 'Packaging', value: (product as any).packaging },
+                        { label: 'Lead Time', value: (product as any).leadTime },
+                        { label: 'RoHS Compliant', value: (product as any).rohs === true ? '✓ Yes' : (product as any).rohs === false ? '✗ No' : undefined },
+                      ].filter(r => r.value).map(row => (
+                        <div key={row.label} className="flex px-4 py-2.5 gap-4 hover:bg-muted/20 transition-colors">
+                          <span className="text-sm text-muted-foreground w-52 flex-shrink-0">{row.label}</span>
+                          <span className="text-sm font-medium font-mono break-all">{String(row.value)}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Full specifications available in datasheet
-                  </p>
+
+                  {/* Technical Specs from specs JSON */}
+                  {product.specs && Object.keys(product.specs).length > 0 && (
+                    <div className="bg-card border border-border rounded-lg overflow-hidden">
+                      <div className="px-4 py-2 bg-primary/5 border-b border-border">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-primary">Technical Specifications</p>
+                      </div>
+                      <div className="divide-y divide-border/50">
+                        {Object.entries(product.specs as Record<string, any>).map(([key, val]) => {
+                          if (val === null || val === undefined || val === '') return null;
+                          // Format key: camelCase or snake_case → Title Case
+                          const label = key
+                            .replace(/_/g, ' ')
+                            .replace(/([a-z])([A-Z])/g, '$1 $2')
+                            .replace(/\b\w/g, c => c.toUpperCase());
+                          const display = typeof val === 'boolean' ? (val ? '✓ Yes' : '✗ No') : String(val);
+                          return (
+                            <div key={key} className="flex px-4 py-2.5 gap-4 hover:bg-muted/20 transition-colors">
+                              <span className="text-sm text-muted-foreground w-52 flex-shrink-0">{label}</span>
+                              <span className="text-sm font-medium">{display}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Capacitor-specific quick specs pulled from top-level fields */}
+                  {(() => {
+                    const p = product as any;
+                    const rows = [
+                      { label: 'Capacitance', value: p.capacitance },
+                      { label: 'Voltage Rating', value: p.voltageRating },
+                      { label: 'Tolerance', value: p.tolerance },
+                      { label: 'Dielectric', value: p.dielectric },
+                      { label: 'ESR', value: p.esr },
+                      { label: 'Ripple Current', value: p.rippleCurrent },
+                      { label: 'Operating Temperature', value: p.temperature || p.operatingTemp },
+                      { label: 'Case Size', value: p.caseSize },
+                      { label: 'Dimensions', value: p.dimensions },
+                      { label: 'Mounting Style', value: p.mounting || p.mountingType },
+                      { label: 'Termination', value: p.termination },
+                      { label: 'Technology', value: p.technology },
+                      { label: 'Temp. Coefficient', value: p.tempCoefficient || p.temperatureCoefficient },
+                      { label: 'Resistance', value: p.resistance },
+                      { label: 'Power Rating', value: p.powerRating },
+                    ].filter(r => r.value);
+                    if (rows.length === 0) return null;
+                    return (
+                      <div className="bg-card border border-border rounded-lg overflow-hidden">
+                        <div className="px-4 py-2 bg-amber-500/5 border-b border-border">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Component Attributes</p>
+                        </div>
+                        <div className="divide-y divide-border/50">
+                          {rows.map(row => (
+                            <div key={row.label} className="flex px-4 py-2.5 gap-4 hover:bg-muted/20 transition-colors">
+                              <span className="text-sm text-muted-foreground w-52 flex-shrink-0">{row.label}</span>
+                              <span className="text-sm font-medium">{String(row.value)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   <Button variant="outline" className="w-full">
                     <Download className="h-4 w-4 mr-2" />
-                    Download Datasheet
+                    Download Datasheet (PDF)
                   </Button>
                 </motion.div>
               )}

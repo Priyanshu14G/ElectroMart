@@ -89,6 +89,13 @@ export default function BusinessSignupPage() {
           name: formData.businessName,
           role: 'business_owner',
           phone: formData.phone || undefined,
+          legalName: formData.legalName,
+          businessType: formData.businessType,
+          gstNumber: formData.gstNumber,
+          location: formData.location,
+          city: formData.city,
+          state: formData.state,
+          description: formData.description,
         }),
       });
 

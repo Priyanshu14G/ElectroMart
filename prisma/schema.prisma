@@ -75,6 +75,7 @@ model VerificationToken {
 
 model Business {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  ownerId         String?  @db.ObjectId  // links to User.id (seller who registered)
   name            String
   legalName       String
   description     String
@@ -82,9 +83,9 @@ model Business {
   banner          String?
   businessTypes   String   // JSON array: ["manufacturer","distributor"]
   gst             String   @unique
-  pan             String
+  pan             String   @default("")
   msme            Boolean  @default(false)
-  yearEstablished Int
+  yearEstablished Int      @default(2024)
   employees       Int?
   annualRevenue   String?
   website         String?
@@ -97,11 +98,12 @@ model Business {
   address         String   // JSON object
   factoryAddress  String?  // JSON object
 
-  certifications  String   // JSON object: {iso,rohs,bis,ce,iec}
+  certifications  String   @default("{}")   // JSON object: {iso,rohs,bis,ce,iec}
   gallery         String?  // JSON array of URLs
-  badges          String   // JSON object: {verified,topRated,fastDelivery,...}
-  stats           String   // JSON object: {responseRate,avgDeliveryTime,...}
+  badges          String   @default("{}")   // JSON object: {verified,topRated,fastDelivery,...}
+  stats           String   @default("{}")   // JSON object: {responseRate,avgDeliveryTime,...}
   rating          Float    @default(0)
+  status          String   @default("pending") // pending | approved | rejected
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -142,11 +144,29 @@ model Product {
   rohs                  Boolean  @default(false)
   reach                 Boolean  @default(false)
 
-  specs                 String?  // JSON object — category-specific specs
+  // ── Component Specific Attributes (Optional) ──
+  capacitance           String?
+  voltageRating         String?
+  tolerance             String?
+  dielectric            String?
+  esr                   String?
+  rippleCurrent         String?
+  temperature           String?
+  caseSize              String?
+  dimensions            String?
+  mounting              String?
+  termination           String?
+  resistance            String?
+  powerRating           String?
+  tempCoefficient       String?
+  technology            String?
+
+  specs                 String?  // JSON object — other category-specific specs
 
   rating                Float?
   reviewCount           Int      @default(0)
   likes                 Int      @default(0)
+  status                String   @default("pending") // pending | approved | rejected
 
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt

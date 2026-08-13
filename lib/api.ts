@@ -155,6 +155,7 @@ export interface GetProductsParams {
   maxPrice?: number;
   inStock?: boolean;
   rohs?: boolean;
+  [key: string]: any;
 }
 
 // ─── Fetch Helpers ────────────────────────────────────────────────────────────

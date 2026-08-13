@@ -86,3 +86,23 @@ export async function GET(
     return NextResponse.json({ product: mock });
   }
 }
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    await prisma.product.delete({
+      where: { id },
+    });
+    return NextResponse.json({ success: true, message: 'Product deleted successfully' });
+  } catch (error: any) {
+    console.error('Delete product error:', error);
+    return NextResponse.json(
+      { error: error?.message || 'Failed to delete product' },
+      { status: 500 }
+    );
+  }
+}
+

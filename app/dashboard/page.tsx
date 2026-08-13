@@ -21,12 +21,19 @@ import { Footer } from '@/components/layouts/footer';
 import { Button } from '@/components/ui/button';
 import { mockRFQs, allProducts } from '@/lib/mock-data';
 import { authUtils } from '@/lib/utils/auth';
+import { useWishlist } from '@/lib/providers/wishlist-provider';
+import { useCart } from '@/lib/providers/cart-provider';
+import { Check } from 'lucide-react';
 
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'rfqs' | 'wishlist' | 'messages' | 'settings'>('overview');
   const [loading, setLoading] = useState(true);
+  const { items: wishlistItems, removeFromWishlist, totalWishlistItems } = useWishlist();
+  const { addToCart } = useCart();
+  const [addedCartIds, setAddedCartIds] = useState<{ [key: string]: boolean }>({});
+
 
   useEffect(() => {
     // Fetch logged in user dynamically from authUtils / localStorage
@@ -150,7 +157,7 @@ export default function DashboardPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                   {[
                     { label: 'Total RFQs', value: '12', icon: ShoppingCart },
-                    { label: 'Wishlist Items', value: '8', icon: Heart },
+                    { label: 'Wishlist Items', value: totalWishlistItems.toString(), icon: Heart },
                     { label: 'Unread Messages', value: '3', icon: MessageSquare },
                     { label: 'Orders Completed', value: '24', icon: TrendingUp },
                   ].map(({ label, value, icon: Icon }) => (
@@ -163,6 +170,7 @@ export default function DashboardPage() {
                     </div>
                   ))}
                 </div>
+
 
                 {/* Recent RFQs */}
                 <div className="bg-card border border-border rounded-lg p-6">
@@ -280,25 +288,105 @@ export default function DashboardPage() {
             {/* Wishlist Tab */}
             {activeTab === 'wishlist' && (
               <div className="space-y-6">
-                <h2 className="text-2xl font-bold">Your Wishlist</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {allProducts.slice(0, 8).map((product) => (
-                    <div key={product.id} className="p-4 bg-card border border-border rounded-lg hover:shadow-lg transition group">
-                      <div className="aspect-square bg-muted rounded-lg flex items-center justify-center text-3xl mb-3 group-hover:scale-105 transition overflow-hidden">
-                        {Array.isArray(product.images) && product.images[0] ? (
-                          <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
-                        ) : (
-                          '📦'
-                        )}
-                      </div>
-                      <h3 className="font-semibold text-sm line-clamp-2 mb-2">{product.name}</h3>
-                      <p className="text-lg font-bold text-primary mb-3">₹{product.price.toLocaleString()}</p>
-                      <Button size="sm" className="w-full">Add to RFQ</Button>
-                    </div>
-                  ))}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold">Your Wishlist</h2>
+                    <p className="text-sm text-muted-foreground">
+                      {wishlistItems.length} {wishlistItems.length === 1 ? 'item' : 'items'} saved for later
+                    </p>
+                  </div>
+                  <Link href="/wishlist">
+                    <Button variant="outline" size="sm">
+                      Open Full Wishlist Page →
+                    </Button>
+                  </Link>
                 </div>
+
+                {wishlistItems.length === 0 ? (
+                  <div className="text-center py-16 bg-card border border-border rounded-xl">
+                    <Heart className="h-12 w-12 text-muted-foreground/50 mx-auto mb-3" />
+                    <h3 className="text-lg font-semibold mb-1">Your wishlist is empty</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Explore our marketplace and click the heart icon on any component to save it here.
+                    </p>
+                    <Link href="/search">
+                      <Button size="sm">Explore Products</Button>
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {wishlistItems.map((product) => {
+                      const img = product.image || (Array.isArray(product.images) ? product.images[0] : null);
+                      return (
+                        <div key={product.id} className="p-4 bg-card border border-border rounded-xl hover:shadow-lg transition flex flex-col justify-between group">
+                          <div>
+                            <div className="aspect-square bg-muted rounded-lg flex items-center justify-center text-3xl mb-3 overflow-hidden relative">
+                              {img ? (
+                                <img src={img} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition" />
+                              ) : (
+                                '📦'
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => removeFromWishlist(product.id)}
+                                className="absolute top-2 right-2 p-1.5 bg-background/80 hover:bg-destructive hover:text-white rounded-full transition shadow-sm text-muted-foreground"
+                                title="Remove"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                            <h3 className="font-semibold text-sm line-clamp-2 mb-1" title={product.name}>
+                              {product.name}
+                            </h3>
+                            <p className="text-base font-bold text-primary mb-3">₹{product.price.toLocaleString('en-IN')}</p>
+                          </div>
+
+                          <div className="flex gap-2 pt-2 border-t border-border/60">
+                            <Button
+                              size="sm"
+                              className={`flex-1 text-xs gap-1 ${
+                                addedCartIds[product.id] ? 'bg-green-600 hover:bg-green-700' : ''
+                              }`}
+                              onClick={() => {
+                                addToCart({
+                                  id: product.id,
+                                  name: product.name,
+                                  price: product.price,
+                                  quantity: product.minOrderQuantity || 1,
+                                  image: img || undefined,
+                                  brand: product.brand,
+                                  category: product.category,
+                                  minOrderQuantity: product.minOrderQuantity || 1,
+                                  stock: product.stock,
+                                });
+                                setAddedCartIds((prev) => ({ ...prev, [product.id]: true }));
+                                setTimeout(() => setAddedCartIds((prev) => ({ ...prev, [product.id]: false })), 1800);
+                              }}
+                            >
+                              {addedCartIds[product.id] ? (
+                                <>
+                                  <Check className="h-3.5 w-3.5" /> Added
+                                </>
+                              ) : (
+                                <>
+                                  <ShoppingCart className="h-3.5 w-3.5" /> Add to Cart
+                                </>
+                              )}
+                            </Button>
+                            <Link href={`/product/${product.id}`} target="_blank">
+                              <Button size="sm" variant="outline" className="px-2" title="View details">
+                                <Eye className="h-3.5 w-3.5" />
+                              </Button>
+                            </Link>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
+
 
             {/* Messages Tab */}
             {activeTab === 'messages' && (
