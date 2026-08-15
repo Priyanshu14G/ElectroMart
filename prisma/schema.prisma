@@ -32,6 +32,7 @@ model User {
   orders        Order[]
   sessions      Session[]
   accounts      Account[]
+  cart          Cart?
 }
 
 model Account {
@@ -315,6 +316,38 @@ model ForumReply {
 
   thread       ForumThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   author       User        @relation(fields: [authorId], references: [id])
+}
+
+// ─── Cart ────────────────────────────────────────────────────────────────────
+
+model Cart {
+  id        String     @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String     @unique @db.ObjectId
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+}
+
+model CartItem {
+  id               String  @id @default(auto()) @map("_id") @db.ObjectId
+  cartId           String  @db.ObjectId
+  productId        String
+  name             String
+  price            Float
+  quantity         Int
+  image            String?
+  brand            String?
+  manufacturer     String?
+  supplierName     String?
+  minOrderQuantity Int     @default(1)
+  stock            Int     @default(100)
+  category         String?
+  leadTime         String?
+  packaging        String?
+
+  cart             Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
 }
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
