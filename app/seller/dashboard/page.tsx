@@ -25,6 +25,7 @@ import {
   Truck,
   ShieldCheck,
   UserCheck,
+  Edit,
 } from 'lucide-react';
 import { Header } from '@/components/layouts/header';
 import { authUtils } from '@/lib/utils/auth';
@@ -850,6 +851,12 @@ export default function SellerDashboardPage() {
                               <Button size="sm" variant="outline" className="w-full gap-1.5 text-xs">
                                 <Eye className="h-3.5 w-3.5" />
                                 View Listing
+                              </Button>
+                            </Link>
+                            <Link href={`/seller/edit-product/${product.id}`} className="flex-1" target="_blank">
+                              <Button size="sm" variant="outline" className="w-full gap-1.5 text-xs">
+                                <Edit className="h-3.5 w-3.5" />
+                                Edit Product
                               </Button>
                             </Link>
                             <Button
