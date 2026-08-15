@@ -166,7 +166,13 @@ export default function SellerDashboardPage() {
   };
 
   const handleDeleteProduct = async (id: string, name: string) => {
-    if (!window.confirm(`Are you sure you want to delete "${name}"?`)) {
+    if (!window.confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    const sellerIdentifier = user?.id || user?.email;
+    if (!sellerIdentifier) {
+      showToast('Seller session not found. Please log in again.', 'error');
       return;
     }
 
@@ -174,6 +180,9 @@ export default function SellerDashboardPage() {
     try {
       const res = await fetch(`/api/products/${id}`, {
         method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${sellerIdentifier}`,
+        },
       });
 
       if (res.ok) {

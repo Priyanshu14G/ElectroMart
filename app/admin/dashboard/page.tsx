@@ -33,6 +33,7 @@ interface PendingProduct {
   description: string;
   images: string;
   createdAt: string;
+  lifecycle?: string;
   supplier?: { name: string; email: string };
 }
 
@@ -52,6 +53,7 @@ export default function AdminDashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'products' | 'sellers' | 'overview'>('overview');
   const [pendingProducts, setPendingProducts] = useState<PendingProduct[]>([]);
+  const [existingProducts, setExistingProducts] = useState<PendingProduct[]>([]);
   const [pendingBusinesses, setPendingBusinesses] = useState<PendingBusiness[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -76,6 +78,7 @@ export default function AdminDashboardPage() {
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
       setPendingProducts(data.products || []);
+      setExistingProducts(data.existingProducts || []);
       setPendingBusinesses(data.businesses || []);
     } catch (err) {
       showToast('Failed to load pending items', 'error');
@@ -99,7 +102,7 @@ export default function AdminDashboardPage() {
     fetchPending();
   }, [fetchPending, router]);
 
-  const handleAction = async (id: string, type: 'product' | 'business', status: 'approved' | 'rejected') => {
+  const handleAction = async (id: string, type: 'product' | 'business', status: 'approved' | 'rejected' | 'deleted') => {
     setActionLoading(`${id}-${status}`);
     try {
       const res = await fetch('/api/admin/approve', {
@@ -108,8 +111,10 @@ export default function AdminDashboardPage() {
         body: JSON.stringify({ id, type, status }),
       });
       if (!res.ok) throw new Error('Action failed');
+
+      const actionText = status === 'deleted' ? 'deleted' : status === 'approved' ? 'approved' : 'rejected';
       showToast(
-        `${type === 'product' ? 'Product' : 'Seller'} ${status === 'approved' ? 'approved' : 'rejected'} successfully!`,
+        `${type === 'product' ? 'Product' : 'Seller'} ${actionText} successfully!`,
         'success'
       );
       await fetchPending();
@@ -120,7 +125,20 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handleDeleteProduct = async (product: PendingProduct) => {
+    const confirmed = window.confirm(`Are you sure you want to delete "${product.name}"? This action cannot be undone.`);
+    if (!confirmed) return;
+    await handleAction(product.id, 'product', 'deleted');
+  };
+
   const filteredProducts = pendingProducts.filter(
+    (p) =>
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.brand.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredExistingProducts = existingProducts.filter(
     (p) =>
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -322,108 +340,170 @@ export default function AdminDashboardPage() {
 
           {/* Products Tab */}
           {activeTab === 'products' && (
-            <div className="space-y-4">
-              {loading ? (
-                <div className="space-y-4">
-                  {[1, 2, 3].map((i) => <div key={i} className="h-24 bg-card border border-border rounded-2xl animate-pulse" />)}
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold">Pending Product Reviews</h2>
+                  <span className="text-sm text-muted-foreground">{pendingProducts.length} pending</span>
                 </div>
-              ) : filteredProducts.length === 0 ? (
-                <div className="text-center py-16 bg-card border border-border rounded-2xl">
-                  <CheckCircle className="h-16 w-16 mx-auto mb-3 text-emerald-500 opacity-60" />
-                  <h3 className="text-lg font-semibold">No Pending Products</h3>
-                  <p className="text-muted-foreground mt-1">All product listings have been reviewed.</p>
-                </div>
-              ) : (
-                filteredProducts.map((product) => {
-                  const images = (() => { try { return JSON.parse(product.images) as string[]; } catch { return []; } })();
-                  const isExpanded = expandedItem === product.id;
-                  return (
-                    <motion.div
-                      key={product.id}
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="bg-card border border-border rounded-2xl overflow-hidden"
-                    >
-                      <div className="p-5 flex items-center gap-4">
-                        {/* Thumbnail */}
-                        <div className="w-16 h-16 rounded-xl overflow-hidden bg-muted flex-shrink-0">
-                          {images[0] ? (
-                            <img src={images[0]} alt={product.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <Package className="w-8 h-8 m-4 text-muted-foreground" />
-                          )}
-                        </div>
 
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <h3 className="font-semibold truncate">{product.name}</h3>
-                              <p className="text-sm text-muted-foreground capitalize">{product.category} • {product.brand}</p>
-                              {product.supplier && (
-                                <p className="text-xs text-muted-foreground mt-0.5">by {product.supplier.name}</p>
-                              )}
+                {loading ? (
+                  <div className="space-y-4">
+                    {[1, 2, 3].map((i) => <div key={i} className="h-24 bg-card border border-border rounded-2xl animate-pulse" />)}
+                  </div>
+                ) : filteredProducts.length === 0 ? (
+                  <div className="text-center py-16 bg-card border border-border rounded-2xl">
+                    <CheckCircle className="h-16 w-16 mx-auto mb-3 text-emerald-500 opacity-60" />
+                    <h3 className="text-lg font-semibold">No Pending Products</h3>
+                    <p className="text-muted-foreground mt-1">All product listings have been reviewed.</p>
+                  </div>
+                ) : (
+                  filteredProducts.map((product) => {
+                    const images = (() => { try { return JSON.parse(product.images) as string[]; } catch { return []; } })();
+                    const isExpanded = expandedItem === product.id;
+                    return (
+                      <motion.div
+                        key={product.id}
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-card border border-border rounded-2xl overflow-hidden"
+                      >
+                        <div className="p-5 flex items-center gap-4">
+                          <div className="w-16 h-16 rounded-xl overflow-hidden bg-muted flex-shrink-0">
+                            {images[0] ? (
+                              <img src={images[0]} alt={product.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <Package className="w-8 h-8 m-4 text-muted-foreground" />
+                            )}
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <h3 className="font-semibold truncate">{product.name}</h3>
+                                <p className="text-sm text-muted-foreground capitalize">{product.category} • {product.brand}</p>
+                                {product.supplier && (
+                                  <p className="text-xs text-muted-foreground mt-0.5">by {product.supplier.name}</p>
+                                )}
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                <p className="font-bold text-lg">₹{product.price.toLocaleString()}</p>
+                                <p className="text-xs text-muted-foreground">{product.stock} in stock</p>
+                              </div>
                             </div>
-                            <div className="text-right flex-shrink-0">
-                              <p className="font-bold text-lg">₹{product.price.toLocaleString()}</p>
-                              <p className="text-xs text-muted-foreground">{product.stock} in stock</p>
-                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <button
+                              onClick={() => setExpandedItem(isExpanded ? null : product.id)}
+                              className="p-2 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                              title="View details"
+                            >
+                              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                            <button
+                              onClick={() => handleAction(product.id, 'product', 'rejected')}
+                              disabled={!!actionLoading}
+                              className="flex items-center gap-1.5 px-3 py-2 bg-red-50 dark:bg-red-950/30 text-red-600 border border-red-200 dark:border-red-800 rounded-lg text-sm font-medium hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors disabled:opacity-50"
+                            >
+                              {actionLoading === `${product.id}-rejected` ? <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" /> : <XCircle className="h-4 w-4" />}
+                              Reject
+                            </button>
+                            <button
+                              onClick={() => handleAction(product.id, 'product', 'approved')}
+                              disabled={!!actionLoading}
+                              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50"
+                            >
+                              {actionLoading === `${product.id}-approved` ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => handleDeleteProduct(product)}
+                              disabled={!!actionLoading}
+                              className="flex items-center gap-1.5 px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+                            >
+                              {actionLoading === `${product.id}-deleted` ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <XCircle className="h-4 w-4" />}
+                              Delete
+                            </button>
                           </div>
                         </div>
 
-                        {/* Actions */}
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <button
-                            onClick={() => setExpandedItem(isExpanded ? null : product.id)}
-                            className="p-2 rounded-lg border border-border hover:bg-muted/50 transition-colors"
-                            title="View details"
-                          >
-                            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </button>
-                          <button
-                            onClick={() => handleAction(product.id, 'product', 'rejected')}
-                            disabled={!!actionLoading}
-                            className="flex items-center gap-1.5 px-3 py-2 bg-red-50 dark:bg-red-950/30 text-red-600 border border-red-200 dark:border-red-800 rounded-lg text-sm font-medium hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors disabled:opacity-50"
-                          >
-                            {actionLoading === `${product.id}-rejected` ? <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" /> : <XCircle className="h-4 w-4" />}
-                            Reject
-                          </button>
-                          <button
-                            onClick={() => handleAction(product.id, 'product', 'approved')}
-                            disabled={!!actionLoading}
-                            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50"
-                          >
-                            {actionLoading === `${product.id}-approved` ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                            Approve
-                          </button>
-                        </div>
-                      </div>
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden border-t border-border"
+                            >
+                              <div className="p-5 bg-muted/20">
+                                <p className="text-sm text-muted-foreground leading-relaxed mb-3">{product.description}</p>
+                                {images.length > 1 && (
+                                  <div className="flex gap-2">
+                                    {images.slice(0, 4).map((img, i) => (
+                                      <img key={i} src={img} alt="" className="w-14 h-14 rounded-lg object-cover border border-border" />
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </motion.div>
+                    );
+                  })
+                )}
+              </div>
 
-                      {/* Expanded */}
-                      <AnimatePresence>
-                        {isExpanded && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="overflow-hidden border-t border-border"
+              {existingProducts.length > 0 && (
+                <div className="space-y-4 pt-2 border-t border-border">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold">Existing Products</h2>
+                    <span className="text-sm text-muted-foreground">{existingProducts.length} listed</span>
+                  </div>
+
+                  {filteredExistingProducts.length === 0 ? (
+                    <div className="text-center py-8 bg-card border border-border rounded-2xl text-muted-foreground">
+                      No existing products match your search.
+                    </div>
+                  ) : (
+                    filteredExistingProducts.map((product) => {
+                      const images = (() => { try { return JSON.parse(product.images) as string[]; } catch { return []; } })();
+                      return (
+                        <motion.div
+                          key={product.id}
+                          initial={{ opacity: 0, y: 12 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="bg-card border border-border rounded-2xl p-4 flex items-center gap-4"
+                        >
+                          <div className="w-14 h-14 rounded-xl overflow-hidden bg-muted flex-shrink-0">
+                            {images[0] ? (
+                              <img src={images[0]} alt={product.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <Package className="w-7 h-7 m-3 text-muted-foreground" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold truncate">{product.name}</h3>
+                            <p className="text-sm text-muted-foreground capitalize">{product.category} • {product.brand}</p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="font-bold text-lg">₹{product.price.toLocaleString()}</p>
+                            <p className="text-xs text-muted-foreground">{product.stock} in stock</p>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteProduct(product)}
+                            disabled={!!actionLoading}
+                            className="flex items-center gap-1.5 px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
                           >
-                            <div className="p-5 bg-muted/20">
-                              <p className="text-sm text-muted-foreground leading-relaxed mb-3">{product.description}</p>
-                              {images.length > 1 && (
-                                <div className="flex gap-2">
-                                  {images.slice(0, 4).map((img, i) => (
-                                    <img key={i} src={img} alt="" className="w-14 h-14 rounded-lg object-cover border border-border" />
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </motion.div>
-                  );
-                })
+                            {actionLoading === `${product.id}-deleted` ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <XCircle className="h-4 w-4" />}
+                            Delete
+                          </button>
+                        </motion.div>
+                      );
+                    })
+                  )}
+                </div>
               )}
             </div>
           )}

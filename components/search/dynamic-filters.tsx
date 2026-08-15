@@ -42,22 +42,20 @@ export function DynamicFilters({
   const filterCategories = filterConfig.filters;
 
   const toggleFilter = (filterId: string, value: string) => {
-    setFilters((prev) => {
-      const current = prev[filterId] || [];
-      const updated = current.includes(value)
-        ? current.filter((v) => v !== value)
-        : [...current, value];
+    const current = filters[filterId] || [];
+    const updated = current.includes(value)
+      ? current.filter((v) => v !== value)
+      : [...current, value];
 
-      const newFilters = { ...prev };
-      if (updated.length === 0) {
-        delete newFilters[filterId];
-      } else {
-        newFilters[filterId] = updated;
-      }
+    const newFilters = { ...filters };
+    if (updated.length === 0) {
+      delete newFilters[filterId];
+    } else {
+      newFilters[filterId] = updated;
+    }
 
-      onFiltersChange(newFilters);
-      return newFilters;
-    });
+    setFilters(newFilters);
+    onFiltersChange(newFilters);
   };
 
   const toggleExpandFilter = (filterId: string) => {

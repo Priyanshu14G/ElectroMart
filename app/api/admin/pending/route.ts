@@ -88,9 +88,20 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
+    const existingProductsList = await prisma.product.findMany({
+      where: {
+        lifecycle: {
+          in: ['active', 'discontinued', 'obsolete'],
+        },
+      },
+      include: { supplier: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
     return NextResponse.json({
       products: pendingProductsList,
       businesses: pendingBusinessesList,
+      existingProducts: existingProductsList,
     });
   } catch (error: any) {
     console.error('Failed to fetch pending items:', error);

@@ -163,6 +163,7 @@ model Product {
   technology            String?
 
   specs                 String?  // JSON object — other category-specific specs
+  filterAttributes      String?  @default("{}") // JSON object — filter values used by search filters
 
   rating                Float?
   reviewCount           Int      @default(0)

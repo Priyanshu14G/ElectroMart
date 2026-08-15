@@ -19,13 +19,26 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    if (status !== 'approved' && status !== 'rejected') {
+    if (status !== 'approved' && status !== 'rejected' && status !== 'deleted') {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
     }
 
     let result;
 
     if (type === 'product') {
+      if (status === 'deleted') {
+        const existing = await prisma.product.findUnique({ where: { id } });
+        if (!existing) {
+          return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+        }
+
+        await prisma.orderItem.deleteMany({ where: { productId: id } });
+        await prisma.review.deleteMany({ where: { productId: id } });
+
+        result = await prisma.product.delete({ where: { id } });
+        return NextResponse.json({ success: true, deleted: true, item: result });
+      }
+
       const existing = await prisma.product.findUnique({ where: { id } });
       const specs = safeJsonParse(existing?.specs, {});
       specs.status = status;
@@ -34,10 +47,15 @@ export async function PUT(request: NextRequest) {
         where: { id },
         data: {
           lifecycle: status === 'approved' ? 'active' : 'discontinued',
+          status: status === 'approved' ? 'approved' : 'rejected',
           specs: JSON.stringify(specs),
         },
       });
     } else if (type === 'business') {
+      if (status === 'deleted') {
+        return NextResponse.json({ error: 'Business deletion is not supported from this endpoint' }, { status: 400 });
+      }
+
       const existing = await prisma.business.findUnique({ where: { id } });
       const badges = safeJsonParse(existing?.badges, {});
       const stats = safeJsonParse(existing?.stats, {});

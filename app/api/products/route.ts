@@ -85,16 +85,14 @@ export async function GET(request: NextRequest) {
       where.lifecycle = 'active';
     }
 
-    // Dynamic component attributes filters
-    const dynamicAttrs = [
-      'capacitance', 'voltageRating', 'tolerance', 'dielectric', 'esr',
-      'rippleCurrent', 'temperature', 'caseSize', 'dimensions', 'mounting',
-      'termination', 'resistance', 'powerRating', 'tempCoefficient', 'technology'
-    ];
-    dynamicAttrs.forEach((attr) => {
-      const val = searchParams.get(attr);
-      if (val) {
-        where[attr] = val;
+    // Dynamic component attributes filters are stored in product specs/filterAttributes JSON.
+    // Apply them in memory after fetch so older product records without a direct DB column still work.
+    const dynamicFilters: Record<string, string[]> = {};
+    Array.from(searchParams.entries()).forEach(([key, value]) => {
+      if (!value || value === 'undefined') return;
+      const isDynamicFilterKey = !['q', 'category', 'supplierId', 'page', 'limit', 'sort', 'minPrice', 'maxPrice', 'inStock', 'rohs', 'status', 'manufacturer', 'mounting', 'package', 'temperature', 'connectortype', 'engineered'].includes(key.toLowerCase());
+      if (isDynamicFilterKey && /^[a-zA-Z0-9]+$/.test(key)) {
+        dynamicFilters[key] = value.split(',').map((v) => v.trim()).filter(Boolean);
       }
     });
 
@@ -110,13 +108,14 @@ export async function GET(request: NextRequest) {
 
     const skip = (page - 1) * limit;
 
+    const fetchLimit = Math.max(limit * 10, 200);
     const [products, total] = await withTimeout(
       Promise.all([
         prisma.product.findMany({
           where,
           orderBy,
           skip,
-          take: limit,
+          take: fetchLimit,
           include: {
             supplier: {
               select: {
@@ -136,7 +135,8 @@ export async function GET(request: NextRequest) {
     const parsedProducts = products.map((p: any) => ({
       ...p,
       images: safeJsonParse(p.images, []),
-      specs: safeJsonParse(p.specs, null),
+      specs: safeJsonParse(p.specs, {}),
+      filterAttributes: safeJsonParse(p.filterAttributes, {}),
       supplier: p.supplier
         ? {
             ...p.supplier,
@@ -146,12 +146,38 @@ export async function GET(request: NextRequest) {
         : null,
     }));
 
-    const totalPages = Math.ceil(total / limit);
+    const filteredProducts = Object.keys(dynamicFilters).length
+      ? parsedProducts.filter((product) => {
+          const allFilterValues = {
+            ...(product.filterAttributes || {}),
+            ...(product.specs || {}),
+            ...(product as Record<string, any>),
+          };
+
+          return Object.entries(dynamicFilters).every(([key, values]) => {
+            const rawValue = allFilterValues[key];
+            if (rawValue === undefined || rawValue === null || rawValue === '') return false;
+
+            const normalizedValues = Array.isArray(rawValue)
+              ? rawValue.map((v) => String(v).toLowerCase())
+              : [String(rawValue).toLowerCase()];
+
+            return values.some((selected) => {
+              const normalizedSelected = selected.toLowerCase();
+              return normalizedValues.some((v) => v === normalizedSelected || v.includes(normalizedSelected) || normalizedSelected.includes(v));
+            });
+          });
+        })
+      : parsedProducts;
+
+    const filteredTotal = filteredProducts.length;
+    const totalPages = Math.ceil(filteredTotal / limit);
+    const paginatedProducts = filteredProducts.slice(skip, skip + limit);
 
     return NextResponse.json({
-      products: parsedProducts,
+      products: paginatedProducts,
       pagination: {
-        total,
+        total: filteredTotal,
         page,
         limit,
         totalPages,
@@ -305,26 +331,38 @@ export async function POST(request: NextRequest) {
       baseSpecs = typeof body.specifications === 'string' ? { details: body.specifications } : body.specifications;
     }
 
+    const filterAttributes: Record<string, any> = {};
+    const rawFilterAttributes = typeof body.filterAttributes === 'string' ? safeJsonParse(body.filterAttributes, {}) : (body.filterAttributes || {});
+    Object.entries(rawFilterAttributes).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        filterAttributes[key] = value;
+      }
+    });
+
     const dynamicAttrs: any = {
       ...baseSpecs,
+      ...rawFilterAttributes,
+      ...filterAttributes,
       status: 'pending',
-      capacitance: body.capacitance || null,
-      voltageRating: body.voltageRating || null,
-      tolerance: body.tolerance || null,
-      dielectric: body.dielectric || null,
-      esr: body.esr || null,
-      rippleCurrent: body.rippleCurrent || null,
-      temperature: body.temperature || null,
-      caseSize: body.caseSize || null,
-      dimensions: body.dimensions || null,
-      mounting: body.mounting || null,
-      termination: body.termination || null,
-      resistance: body.resistance || null,
-      powerRating: body.powerRating || null,
-      tempCoefficient: body.tempCoefficient || null,
-      technology: body.technology || null,
+      capacitance: body.capacitance || rawFilterAttributes.capacitance || null,
+      voltageRating: body.voltageRating || rawFilterAttributes.voltageRating || null,
+      tolerance: body.tolerance || rawFilterAttributes.tolerance || null,
+      dielectric: body.dielectric || rawFilterAttributes.dielectric || null,
+      esr: body.esr || rawFilterAttributes.esr || null,
+      rippleCurrent: body.rippleCurrent || rawFilterAttributes.rippleCurrent || null,
+      temperature: body.temperature || rawFilterAttributes.temperature || null,
+      caseSize: body.caseSize || rawFilterAttributes.caseSize || null,
+      dimensions: body.dimensions || rawFilterAttributes.dimensions || null,
+      mounting: body.mounting || rawFilterAttributes.mounting || null,
+      termination: body.termination || rawFilterAttributes.termination || null,
+      resistance: body.resistance || rawFilterAttributes.resistance || null,
+      powerRating: body.powerRating || rawFilterAttributes.powerRating || null,
+      tempCoefficient: body.tempCoefficient || rawFilterAttributes.tempCoefficient || null,
+      technology: body.technology || rawFilterAttributes.technology || null,
+      manufacturer: body.manufacturer || body.brand || rawFilterAttributes.manufacturer || null,
     };
     const specsData = JSON.stringify(dynamicAttrs);
+    const filterAttributesData = JSON.stringify(filterAttributes);
 
     const price = parseFloat(body.price) || 0;
     const stock = parseInt(body.stock, 10) || 0;
@@ -360,6 +398,7 @@ export async function POST(request: NextRequest) {
         countryOfOrigin,
         warranty,
         specs: specsData,
+        filterAttributes: filterAttributesData,
         lifecycle: 'pending',
         rohs: body.rohs !== undefined ? Boolean(body.rohs) : true,
         reach: body.reach !== undefined ? Boolean(body.reach) : true,
